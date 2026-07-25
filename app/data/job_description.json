@@ -1,0 +1,21 @@
+{
+  "title": "Senior Backend Engineer (Python) - Ride Matching & Dispatch Team",
+  "company": "Careem",
+  "department": "Ride Hailing Core",
+  "location": "Dubai, UAE (Remote Friendly)",
+  "description": "Careem is looking for a Senior Backend Engineer to join our Core Matching & Dispatch Team. In this role, you will design, build, and optimize high-throughput, low-latency backend systems and APIs that power our real-time vehicle matching, dynamic surge pricing, and driver routing algorithms. You will work on distributed state machines processing millions of concurrent bookings daily, ensuring system availability, sub-second latency, and horizontal scalability.",
+  "requirements": [
+    "5+ years of production experience designing and building scalable backend systems in Python.",
+    "Strong proficiency in modern Python frameworks such as FastAPI, Django, or Flask.",
+    "Deep understanding of microservices architecture, event-driven design, and API patterns (REST, gRPC, WebSockets).",
+    "Hands-on experience with relational databases (PostgreSQL), data modeling, and caching mechanisms (Redis).",
+    "Experience with message brokers and event streaming networks (Apache Kafka, RabbitMQ).",
+    "Familiarity with cloud infrastructures (AWS), Docker, and Kubernetes deployment workflows.",
+    "Proven track record of optimizing systems for high concurrency, distributed locking, and microsecond latencies."
+  ],
+  "preferred_qualifications": [
+    "Prior experience working in ride-hailing, delivery, logistics, or last-mile transit companies.",
+    "Knowledge of Go or Java for cross-service development and integration.",
+    "Familiarity with geospatial index libraries (Uber H3, Google S2) or PostGIS for location-based query optimization."
+  ]
+}
