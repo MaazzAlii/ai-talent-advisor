@@ -12,19 +12,30 @@ class LLMService:
         self.provider = settings.LLM_PROVIDER
         self.model = settings.LLM_MODEL
         
-        if self.provider == "groq" and self.api_key:
-            self.client = Groq(api_key=self.api_key)
+        if self.provider == "groq":
+            if self.api_key:
+                self.client = Groq(api_key=self.api_key)
+            else:
+                self.client = None
+                logger.warning("Groq API client not initialized. Check your environment variables.")
+        elif self.provider == "mistral":
+            self.client = None
+            if not self.api_key:
+                logger.warning("Mistral API key not initialized. Check your environment variables.")
         else:
             self.client = None
-            logger.warning("Groq API client not initialized. Check your environment variables.")
+            logger.warning(f"Unsupported LLM provider '{self.provider}'. Fallback mock response will be used.")
 
     def screen_resume(self, job_desc: Dict[str, Any], resume_text: str) -> Dict[str, Any]:
         """
         Screens a resume against the Careem Job Description.
         Calculates score breakdown and generates tailored interview questions using LLM.
         """
-        if not self.client:
-            logger.error("LLM client not configured. Returning fallback mock response.")
+        if self.provider == "groq" and not self.client:
+            logger.error("Groq client not initialized. Returning fallback mock response.")
+            return self._get_fallback_evaluation("Mock Candidate")
+        elif not self.api_key:
+            logger.error(f"{self.provider.upper()} API key not configured. Returning fallback mock response.")
             return self._get_fallback_evaluation("Mock Candidate")
 
         system_prompt = (
@@ -72,17 +83,40 @@ class LLMService:
         )
 
         try:
-            chat_completion = self.client.chat.completions.create(
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_content}
-                ],
-                model=self.model,
-                temperature=0.1,
-                max_tokens=1500,
-                response_format={"type": "json_object"}
-            )
-            result_text = chat_completion.choices[0].message.content.strip()
+            if self.provider == "groq":
+                chat_completion = self.client.chat.completions.create(
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_content}
+                    ],
+                    model=self.model,
+                    temperature=0.1,
+                    max_tokens=1500,
+                    response_format={"type": "json_object"}
+                )
+                result_text = chat_completion.choices[0].message.content.strip()
+            elif self.provider == "mistral":
+                import httpx
+                headers = {
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json"
+                }
+                payload = {
+                    "model": self.model,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_content}
+                    ],
+                    "temperature": 0.1,
+                    "max_tokens": 1500,
+                    "response_format": {"type": "json_object"}
+                }
+                response = httpx.post("https://api.mistral.ai/v1/chat/completions", headers=headers, json=payload, timeout=60.0)
+                response.raise_for_status()
+                result_text = response.json()["choices"][0]["message"]["content"].strip()
+            else:
+                raise ValueError(f"Unsupported LLM provider: {self.provider}")
+
             # Safety checks to parse json clean
             if result_text.startswith("```"):
                 lines = result_text.splitlines()
@@ -92,7 +126,7 @@ class LLMService:
                     result_text = "\n".join(lines[1:-1])
             return json.loads(result_text)
         except Exception as e:
-            logger.error(f"Error calling Groq API: {e}")
+            logger.error(f"Error calling {self.provider.upper()} API: {e}")
             # Try to infer a candidate name from the resume text for the fallback
             candidate_name = self._infer_candidate_name(resume_text)
             return self._get_fallback_evaluation(candidate_name)
