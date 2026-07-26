@@ -11,8 +11,8 @@ class Settings(BaseSettings):
 
     GROQ_API_KEY: Optional[str] = None
     MISTRAL_API_KEY: Optional[str] = None
-    LLM_PROVIDER: str = "groq"
-    LLM_MODEL: str = "llama-3.3-70b-versatile"
+    LLM_PROVIDER: str = "mistral"
+    LLM_MODEL: str = "mistral-large-latest"
     PORT: int = 8000
 
     @property
@@ -31,6 +31,7 @@ class Settings(BaseSettings):
         if model:
             self.LLM_MODEL = model
         else:
-            self.LLM_MODEL = "llama-3.3-70b-versatile" if provider_clean == "groq" else "mistral-small-latest"
+            # Default to best model per provider
+            self.LLM_MODEL = "mistral-large-latest" if provider_clean == "mistral" else "llama-3.3-70b-versatile"
 
 settings = Settings()
