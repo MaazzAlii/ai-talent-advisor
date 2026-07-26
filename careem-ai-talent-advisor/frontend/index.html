@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Careem AI Talent Advisor | Resume Screener & Interview Assistant</title>
+  <!-- Google Fonts: Inter & Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Lucide Icons for premium visual cues -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Custom Styling -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Background decorative elements for futuristic glow -->
+  <div class="glow-bg">
+    <div class="glow-orb orb-1"></div>
+    <div class="glow-orb orb-2"></div>
+  </div>
+
+  <header class="app-header">
+    <div class="header-container">
+      <div class="logo-area">
+        <div class="logo-icon"><i data-lucide="zap"></i></div>
+        <div class="logo-text">
+          <h1>Careem <span class="accent-text">TalentAI</span></h1>
+          <p>AI-Powered Talent Acquisition & Interview Intelligence</p>
+        </div>
+      </div>
+      <div class="jd-badge-container">
+        <button id="view-jd-btn" class="btn btn-secondary">
+          <i data-lucide="briefcase"></i> View Job Description
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-container">
+    <!-- Left Sidebar: Candidate List and Upload -->
+    <aside class="sidebar">
+      <div class="sidebar-card upload-card">
+        <h3><i data-lucide="file-up"></i> Screen New Resume</h3>
+        <p class="card-subtitle">Upload a candidate resume in PDF, MD, or TXT format</p>
+        
+        <div class="dropzone" id="dropzone">
+          <input type="file" id="resume-file-input" accept=".pdf,.txt,.md" style="display:none;">
+          <i data-lucide="upload-cloud" class="upload-icon"></i>
+          <p class="dropzone-text">Drag & drop or <span class="browse-link">browse</span></p>
+          <span class="file-limits">PDF, TXT, or MD (max 10MB)</span>
+        </div>
+        <div id="upload-status" class="status-msg hidden"></div>
+      </div>
+
+      <div class="sidebar-card list-card">
+        <div class="card-header-row">
+          <h3><i data-lucide="users"></i> Sample Candidates</h3>
+          <button id="batch-screen-btn" class="btn btn-primary btn-sm">
+            <i data-lucide="play"></i> Screen All
+          </button>
+        </div>
+        <div class="candidate-list" id="candidates-container">
+          <!-- Populated dynamically via JS -->
+          <div class="loader-container"><div class="spinner"></div></div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Right Area: Details and Scoring Analysis -->
+    <section class="main-content">
+      <!-- Default state when no candidate is selected -->
+      <div class="empty-state-view" id="empty-state">
+        <i data-lucide="bar-chart-3" class="empty-icon"></i>
+        <h2>Candidate Analysis Panel</h2>
+        <p>Select a candidate from the sidebar or upload a new resume to view their screening score, suitability breakdown, and custom interview questions.</p>
+      </div>
+
+      <!-- Candidate Assessment Dashboard -->
+      <div class="dashboard-view hidden" id="dashboard-view">
+        
+        <!-- Candidate Identity & Score Ribbon -->
+        <div class="candidate-header">
+          <div class="candidate-info">
+            <div class="avatar"><span id="candidate-initials">AK</span></div>
+            <div>
+              <h2 id="candidate-name-title">Anas Khan</h2>
+              <div class="candidate-meta">
+                <span id="candidate-email"><i data-lucide="mail"></i> anas@email.com</span>
+                <span id="candidate-location"><i data-lucide="map-pin"></i> Dubai, UAE</span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="score-display-block">
+            <div class="radial-progress-container">
+              <svg viewBox="0 0 36 36" class="circular-chart">
+                <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                <path id="score-circle-path" class="circle" stroke-dasharray="85, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+              </svg>
+              <div class="radial-percentage"><span id="overall-score-num">85</span>%</div>
+            </div>
+            <div class="status-badge" id="status-badge">Shortlisted</div>
+          </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="tab-container">
+          <button class="tab-btn active" data-tab="screening-tab"><i data-lucide="award"></i> Assessment Summary</button>
+          <button class="tab-btn" data-tab="questions-tab"><i data-lucide="message-square"></i> Interview Guide (5 Qs)</button>
+          <button class="tab-btn" data-tab="resume-tab"><i data-lucide="file-text"></i> Original Resume</button>
+        </div>
+
+        <!-- Tab Contents -->
+        <div class="tab-content-area">
+          
+          <!-- Tab 1: Screening & Breakdown -->
+          <div class="tab-pane active" id="screening-tab">
+            <div class="split-layout">
+              <!-- Dimensions Breakdown -->
+              <div class="card dimension-card">
+                <h3><i data-lucide="check-circle-2"></i> Suitability Criteria Breakdown</h3>
+                <div class="dimensions-list">
+                  
+                  <div class="dimension-item">
+                    <div class="dimension-label">
+                      <span>Python & Web Frameworks (FastAPI/Django)</span>
+                      <strong class="score-pill" id="score-backend">5/5</strong>
+                    </div>
+                    <div class="progress-bar-bg"><div class="progress-bar-fill" id="fill-backend" style="width: 100%;"></div></div>
+                    <p class="dimension-justification" id="just-backend">...</p>
+                  </div>
+
+                  <div class="dimension-item">
+                    <div class="dimension-label">
+                      <span>System Design & Concurrency Scale</span>
+                      <strong class="score-pill" id="score-design">4/5</strong>
+                    </div>
+                    <div class="progress-bar-bg"><div class="progress-bar-fill" id="fill-design" style="width: 80%;"></div></div>
+                    <p class="dimension-justification" id="just-design">...</p>
+                  </div>
+
+                  <div class="dimension-item">
+                    <div class="dimension-label">
+                      <span>Real-time APIs & Databases (Redis/Postgres)</span>
+                      <strong class="score-pill" id="score-databases">4/5</strong>
+                    </div>
+                    <div class="progress-bar-bg"><div class="progress-bar-fill" id="fill-databases" style="width: 80%;"></div></div>
+                    <p class="dimension-justification" id="just-databases">...</p>
+                  </div>
+
+                  <div class="dimension-item">
+                    <div class="dimension-label">
+                      <span>Cloud, Docker & Kubernetes Infrastructure</span>
+                      <strong class="score-pill" id="score-devops">4/5</strong>
+                    </div>
+                    <div class="progress-bar-bg"><div class="progress-bar-fill" id="fill-devops" style="width: 80%;"></div></div>
+                    <p class="dimension-justification" id="just-devops">...</p>
+                  </div>
+
+                  <div class="dimension-item">
+                    <div class="dimension-label">
+                      <span>Careem Domain Fit (Logistics/Ride-Hailing)</span>
+                      <strong class="score-pill" id="score-domain">5/5</strong>
+                    </div>
+                    <div class="progress-bar-bg"><div class="progress-bar-fill" id="fill-domain" style="width: 100%;"></div></div>
+                    <p class="dimension-justification" id="just-domain">...</p>
+                  </div>
+
+                </div>
+              </div>
+
+              <!-- General Summary -->
+              <div class="card summary-card">
+                <h3><i data-lucide="info"></i> Evaluation Summary</h3>
+                <div class="evaluation-summary-text" id="evaluation-summary">
+                  ...
+                </div>
+                <div class="timestamp-stamp">
+                  <i data-lucide="calendar"></i> Evaluation Date: <span id="evaluation-date">N/A</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 2: Interview Questions -->
+          <div class="tab-pane" id="questions-tab">
+            <div class="card questions-card">
+              <div class="questions-header">
+                <h3><i data-lucide="help-circle"></i> Tailored Technical Interview Guide</h3>
+                <p>These questions are synthesized specifically to drill into this candidate's potential weaknesses, key projects, and relevant Careem domain scenarios.</p>
+              </div>
+              <ul class="questions-list" id="questions-list">
+                <!-- Populated dynamically via JS -->
+              </ul>
+            </div>
+          </div>
+
+          <!-- Tab 3: Resume Viewer -->
+          <div class="tab-pane" id="resume-tab">
+            <div class="card resume-view-card">
+              <div class="resume-view-header">
+                <h3><i data-lucide="align-left"></i> Resume Source Content</h3>
+                <button id="copy-resume-btn" class="btn btn-secondary btn-sm"><i data-lucide="copy"></i> Copy Content</button>
+              </div>
+              <pre class="resume-raw-content" id="resume-raw-text">
+                <!-- Populated dynamically via JS -->
+              </pre>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+  </main>
+
+  <!-- Job Description Modal -->
+  <div class="modal-overlay hidden" id="jd-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2><i data-lucide="briefcase"></i> Job Description Details</h2>
+        <button class="close-btn" id="close-jd-btn">&times;</button>
+      </div>
+      <div class="modal-body" id="jd-modal-body">
+        <!-- Loaded dynamically -->
+        <div class="loader-container"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lucide Script init -->
+  <script>
+    lucide.createIcons();
+  </script>
+  <!-- Main Script -->
+  <script src="app.js"></script>
+</body>
+</html>
