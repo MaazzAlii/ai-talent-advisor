@@ -1,6 +1,5 @@
 import os
 import logging
-import tempfile
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -15,10 +14,9 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="Careem AI Talent Advisor API",
     description="AI-powered resume screening and interview assistant for Careem's engineering team.",
-    version="2.0.0"
+    version="2.1.0"
 )
 
-# CORS middleware for local development
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -27,58 +25,63 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ─────────────── Job Description Endpoints ───────────────
+# ─────────────────────── Supported file types ───────────────────────
+SUPPORTED_TEXT = {".pdf", ".txt", ".md"}
+SUPPORTED_IMAGE = {".jpg", ".jpeg", ".png"}
+MIME_MAP = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
+
+# ─────────────────────── Job Description Endpoints ───────────────────────
 
 @app.get("/api/jd", response_model=JobDescription)
 def get_job_description():
-    """Gets the target Job Description."""
+    """Returns the active Job Description."""
     try:
         return resume_service.load_job_description()
     except Exception as e:
-        logger.error(f"Error loading Job Description: {e}")
+        logger.error(f"Error loading JD: {e}")
         raise HTTPException(status_code=500, detail="Failed to load Job Description.")
 
 
 @app.put("/api/jd", response_model=JobDescription)
 def update_job_description(jd: JobDescription):
-    """Updates the active Job Description."""
+    """Saves an updated Job Description."""
     try:
         return resume_service.save_job_description(jd.model_dump())
     except Exception as e:
-        logger.error(f"Error saving Job Description: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to update Job Description: {str(e)}")
+        logger.error(f"Error saving JD: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update JD: {str(e)}")
 
 
 @app.post("/api/jd/reset", response_model=JobDescription)
 def reset_job_description():
-    """Resets the Job Description back to the default Careem JD."""
+    """Resets to the default Careem JD."""
     try:
         return resume_service.reset_job_description()
     except Exception as e:
-        logger.error(f"Error resetting Job Description: {e}")
+        logger.error(f"Error resetting JD: {e}")
         raise HTTPException(status_code=500, detail="Failed to reset Job Description.")
 
 
-# ─────────────── LLM Config Endpoints ───────────────
+# ─────────────────────── LLM Config Endpoints ───────────────────────
 
 @app.get("/api/llm-config")
 def get_llm_config():
-    """Gets current LLM provider and model."""
+    """Returns current LLM provider, model, and available options."""
     return {
         "provider": settings.LLM_PROVIDER,
         "model": settings.LLM_MODEL,
         "available_providers": [
-            {"value": "mistral", "label": "Mistral Large (Best Quality)", "model": "mistral-large-latest"},
-            {"value": "groq", "label": "Groq Llama 3.3 70B (Fast)", "model": "llama-3.3-70b-versatile"},
+            {"value": "mistral", "label": "✦ Mistral Large (Best Quality)", "model": "mistral-large-latest"},
+            {"value": "groq",    "label": "⚡ Groq Llama 3.3 70B (Fast)",   "model": "llama-3.3-70b-versatile"},
         ]
     }
 
 
 @app.post("/api/llm-config")
 def update_llm_config(payload: dict):
-    """Switches active LLM provider ('groq' or 'mistral')."""
+    """Switches the active LLM provider. Accepts { provider: 'mistral'|'groq', model?: '...' }"""
     provider = payload.get("provider")
-    model = payload.get("model")
+    model    = payload.get("model")
     if not provider:
         raise HTTPException(status_code=400, detail="Provider field is required.")
     try:
@@ -95,11 +98,11 @@ def update_llm_config(payload: dict):
         raise HTTPException(status_code=400, detail=str(e))
 
 
-# ─────────────── Candidate Endpoints ───────────────
+# ─────────────────────── Candidate Endpoints ───────────────────────
 
 @app.get("/api/candidates")
 def list_candidates():
-    """Lists all available resumes."""
+    """Lists all pre-loaded candidate resumes."""
     try:
         return resume_service.list_resumes()
     except Exception as e:
@@ -109,74 +112,83 @@ def list_candidates():
 
 @app.get("/api/candidates/{candidate_id}")
 def get_candidate_resume(candidate_id: str):
-    """Retrieves the raw resume content of a candidate."""
+    """Returns the raw Markdown content of a pre-loaded resume."""
     try:
         content = resume_service.get_resume_content(candidate_id)
         return {"id": candidate_id, "content": content}
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Candidate resume not found.")
     except Exception as e:
-        logger.error(f"Error reading candidate resume: {e}")
+        logger.error(f"Error reading resume: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve resume.")
 
 
-# ─────────────── Screening Endpoints ───────────────
+# ─────────────────────── Screening Endpoints ───────────────────────
 
 @app.post("/api/screen/{candidate_id}", response_model=EvaluationResult)
 def screen_candidate(candidate_id: str):
-    """Screens a pre-loaded candidate against the active Job Description."""
+    """Screens a pre-loaded candidate against the active JD using Mistral Large."""
     try:
         return resume_service.screen_candidate(candidate_id)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Candidate not found.")
     except Exception as e:
-        logger.error(f"Error screening candidate {candidate_id}: {e}")
+        logger.error(f"Error screening {candidate_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Screening failed: {str(e)}")
 
 
 @app.post("/api/screen-custom", response_model=EvaluationResult)
 async def screen_custom_resume(file: UploadFile = File(...)):
-    """Screens an uploaded PDF, TXT, or MD resume using Microsoft MarkItDown for conversion."""
+    """
+    Screens an uploaded resume against the active JD.
+
+    Supported formats:
+    - PDF / TXT / MD  → text extracted by pypdf or decoded, then structured by Mistral Large
+    - JPG / PNG       → text extracted by Pixtral (Mistral vision model)
+    """
     filename = file.filename or "upload"
     ext = os.path.splitext(filename)[1].lower()
 
-    if ext not in [".pdf", ".txt", ".md"]:
-        raise HTTPException(status_code=400, detail="Unsupported format. Upload PDF, TXT, or MD.")
+    if ext not in SUPPORTED_TEXT | SUPPORTED_IMAGE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported format '{ext}'. Upload PDF, TXT, MD, JPG, or PNG."
+        )
 
     try:
         file_bytes = await file.read()
 
-        # Save to temp file so MarkItDown can access it by path
-        with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
-            tmp.write(file_bytes)
-            tmp_path = tmp.name
+        if ext in SUPPORTED_IMAGE:
+            # ── Image resume → Pixtral vision model ──
+            from app.services.llm_service import llm_service
+            mime = MIME_MAP[ext]
+            resume_content = llm_service.parse_image_resume(file_bytes, mime_type=mime)
 
-        try:
-            if ext == ".pdf":
-                # Use MarkItDown for PDF → Markdown conversion
-                resume_content = resume_service.normalize_resume_to_markdown("", file_path=tmp_path)
-                if not resume_content or resume_content.startswith("# Empty"):
-                    # Fallback to pypdf
-                    resume_content = resume_service.parse_pdf(file_bytes)
-            else:
-                resume_content = file_bytes.decode("utf-8", errors="ignore")
-        finally:
-            os.unlink(tmp_path)
+        elif ext == ".pdf":
+            # ── PDF → pypdf text extraction (fast) → Mistral Large structuring ──
+            raw_text = resume_service.extract_text_from_pdf(file_bytes)
+            if not raw_text.strip():
+                raise HTTPException(status_code=400, detail="Could not extract text from PDF. The file may be image-only — try uploading as JPG/PNG.")
+            resume_content = resume_service.normalize_resume_text(raw_text)
+
+        else:
+            # ── TXT / MD → decode directly ──
+            resume_content = file_bytes.decode("utf-8", errors="ignore")
+            resume_content = resume_service.normalize_resume_text(resume_content)
 
         if not resume_content.strip():
             raise HTTPException(status_code=400, detail="The uploaded file appears to be empty.")
 
-        result = resume_service.screen_custom_resume(filename, resume_content)
-        return result
+        return resume_service.screen_custom_resume(filename, resume_content)
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error processing custom resume upload: {e}")
-        raise HTTPException(status_code=500, detail=f"Custom screening failed: {str(e)}")
+        logger.error(f"Error processing custom resume: {e}")
+        raise HTTPException(status_code=500, detail=f"Screening failed: {str(e)}")
 
 
-# ─────────────── Improvement Endpoints ───────────────
+# ─────────────────────── Improvement Endpoints ───────────────────────
 
 @app.post("/api/improve/{candidate_id}", response_model=ImprovementResult)
 def improve_candidate(candidate_id: str):
@@ -192,49 +204,46 @@ def improve_candidate(candidate_id: str):
 
 @app.post("/api/improve-custom", response_model=ImprovementResult)
 async def improve_custom_resume(file: UploadFile = File(...)):
-    """Generates improvement suggestions for an uploaded resume."""
+    """Generates resume improvement suggestions for an uploaded resume file."""
     filename = file.filename or "upload"
     ext = os.path.splitext(filename)[1].lower()
 
-    if ext not in [".pdf", ".txt", ".md"]:
-        raise HTTPException(status_code=400, detail="Unsupported format. Upload PDF, TXT, or MD.")
+    if ext not in SUPPORTED_TEXT | SUPPORTED_IMAGE:
+        raise HTTPException(status_code=400, detail="Unsupported format. Upload PDF, TXT, MD, JPG, or PNG.")
 
     try:
         file_bytes = await file.read()
+        from app.services.llm_service import llm_service
 
-        with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
-            tmp.write(file_bytes)
-            tmp_path = tmp.name
-
-        try:
-            if ext == ".pdf":
-                resume_content = resume_service.normalize_resume_to_markdown("", file_path=tmp_path)
-                if not resume_content or resume_content.startswith("# Empty"):
-                    resume_content = resume_service.parse_pdf(file_bytes)
-            else:
-                resume_content = file_bytes.decode("utf-8", errors="ignore")
-        finally:
-            os.unlink(tmp_path)
+        if ext in SUPPORTED_IMAGE:
+            mime = MIME_MAP[ext]
+            resume_content = llm_service.parse_image_resume(file_bytes, mime_type=mime)
+        elif ext == ".pdf":
+            raw_text = resume_service.extract_text_from_pdf(file_bytes)
+            resume_content = resume_service.normalize_resume_text(raw_text)
+        else:
+            raw_text = file_bytes.decode("utf-8", errors="ignore")
+            resume_content = resume_service.normalize_resume_text(raw_text)
 
         if not resume_content.strip():
             raise HTTPException(status_code=400, detail="The uploaded file appears to be empty.")
 
-        from app.services.llm_service import llm_service
         candidate_name = llm_service._infer_candidate_name(resume_content)
-        candidate_id = "custom_" + filename.lower().replace(" ", "_").replace(ext, "")
-        safe_id = "".join([c for c in candidate_id if c.isalnum() or c in ("_", "-")])
+        raw_id = "custom_" + filename.lower().replace(" ", "_")
+        for e in list(SUPPORTED_TEXT | SUPPORTED_IMAGE):
+            raw_id = raw_id.replace(e, "")
+        candidate_id = "".join(c for c in raw_id if c.isalnum() or c in ("_", "-"))
 
-        result = resume_service.improve_custom_resume(resume_content, safe_id, candidate_name)
-        return result
+        return resume_service.improve_custom_resume(resume_content, candidate_id, candidate_name)
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error generating custom improvement: {e}")
+        logger.error(f"Error generating custom improvements: {e}")
         raise HTTPException(status_code=500, detail=f"Improvement analysis failed: {str(e)}")
 
 
-# ─────────────── Static Frontend ───────────────
+# ─────────────────────── Static Frontend ───────────────────────
 
 frontend_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
 if os.path.exists(frontend_dir):
