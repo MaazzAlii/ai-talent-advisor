@@ -22,3 +22,7 @@ Thumbs.db
 .vscode/
 .idea/
 .gemini/
+
+# Custom uploaded resumes
+app/data/resumes/custom_*
+

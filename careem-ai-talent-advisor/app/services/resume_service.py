@@ -91,6 +91,18 @@ class ResumeService:
         candidate_name = llm_service._infer_candidate_name(resume_content)
         candidate_id = "custom_" + file_name.lower().replace(" ", "_").replace(".pdf", "").replace(".txt", "").replace(".md", "")
         
+        # Save the custom resume to the resumes directory so it can be retrieved and listed
+        try:
+            os.makedirs(self.resumes_dir, exist_ok=True)
+            # Clean candidate_id to be a valid file name
+            safe_id = "".join([c for c in candidate_id if c.isalnum() or c in ("_", "-")])
+            custom_file_path = os.path.join(self.resumes_dir, f"{safe_id}.txt")
+            with open(custom_file_path, "w", encoding="utf-8") as f:
+                f.write(resume_content)
+            candidate_id = safe_id
+        except Exception as e:
+            logger.error(f"Failed to save custom resume {candidate_id} to disk: {e}")
+
         evaluation["candidate_id"] = candidate_id
         evaluation["candidate_name"] = candidate_name
         evaluation["evaluation_date"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
