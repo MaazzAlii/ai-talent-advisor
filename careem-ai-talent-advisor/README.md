@@ -29,11 +29,10 @@ This project was built for the **Week 3 AI & ML Task**: *"Build an AI agent that
 - **Groq Llama 3.3 70B** — ultra-fast inference alternative
 - Switch models from the header dropdown at any time, without restarting the server
 
-### 3. 📄 Microsoft MarkItDown Resume Conversion
-- Integrates **Microsoft's official `markitdown` library** for document-to-Markdown conversion
-- Converts uploaded **PDF, DOCX, TXT, or MD** resumes into clean structured Markdown before LLM analysis
-- Ensures consistent, high-quality input to the AI for accurate scoring
-- Credit: [github.com/microsoft/markitdown](https://github.com/microsoft/markitdown) (MIT License)
+### 3. ⚡ High-Speed Direct AI Resume Parsing (PDF, TXT, MD, JPG, PNG)
+- Fast, zero-latency document parsing pipeline using **pypdf** for PDFs and **Pixtral (`pixtral-12b-2409`)** for image/screenshot resumes
+- Extracted raw text is structured directly by **Mistral Large** into clean Markdown format in a single fast API call
+- Eliminates heavy local file processing dependencies for maximum speed and accuracy
 
 ### 4. ⚖️ 5-Dimensional AI Scoring Model
 Each candidate is evaluated on 5 weighted dimensions (0–5 scale per dimension):
@@ -250,11 +249,11 @@ Careem's Senior Backend Engineer role requires a very specific combination of sk
 | Layer | Technology | Purpose |
 |-------|-----------|---------|
 | **AI / LLM** | Mistral Large (`mistral-large-latest`) | Resume scoring, question generation, improvement analysis |
+| **AI Vision** | Pixtral (`pixtral-12b-2409`) | Image / screenshot resume text extraction |
 | **AI / LLM Alt** | Groq Llama 3.3 70B | Fast inference alternative |
-| **Document Parsing** | Microsoft MarkItDown | PDF/DOCX → Markdown conversion |
+| **Document Parsing** | pypdf | Fast PDF text extraction |
 | **Backend** | FastAPI + Uvicorn | REST API server |
 | **Data Validation** | Pydantic v2 | Schema validation & settings |
-| **PDF Parsing** | pypdf | Fallback PDF text extraction |
 | **HTTP Client** | httpx | Async HTTP calls to Mistral API |
 | **Frontend** | Vanilla HTML5/CSS3/JS | No framework needed |
 | **Icons** | Lucide Icons | Premium icon set |
@@ -286,19 +285,9 @@ Careem's Senior Backend Engineer role requires a very specific combination of sk
 | ✅ Short write-up on scoring criteria | See above section |
 | ✅ Resume improvement suggestions | New in v2.0 |
 | ✅ Editable Job Description system | New in v2.0 |
-| ✅ Custom resume upload (PDF/MD/TXT) | Complete |
+| ✅ Custom resume upload (PDF/MD/TXT/JPG/PNG) | Complete |
 | ✅ GitHub Repository | Committed with individual file commits |
 | ✅ README with full documentation | This document |
-
----
-
-## 🔗 Acknowledgements & Credits
-
-This project uses **Microsoft's MarkItDown** for document-to-Markdown conversion:
-
-- **Repository:** [https://github.com/microsoft/markitdown](https://github.com/microsoft/markitdown)
-- **License:** MIT License © Microsoft Corporation
-- **Purpose:** Converts PDF, DOCX, PPTX, and other document formats to clean Markdown for LLM consumption
 
 ---
 
