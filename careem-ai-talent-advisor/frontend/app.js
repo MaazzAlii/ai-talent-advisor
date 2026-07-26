@@ -37,6 +37,7 @@ const uploadStatus = document.getElementById('upload-status');
 document.addEventListener('DOMContentLoaded', () => {
   fetchJobDescription();
   fetchCandidates();
+  fetchLlmConfig();
   setupEventListeners();
 });
 
@@ -100,6 +101,14 @@ function setupEventListeners() {
     });
   }
 
+  // Model selector dropdown
+  const providerSelect = document.getElementById('llm-provider-select');
+  if (providerSelect) {
+    providerSelect.addEventListener('change', (e) => {
+      updateLlmProvider(e.target.value);
+    });
+  }
+
   // Batch screen trigger
   batchScreenBtn.addEventListener('click', () => {
     batchScreenAll();
@@ -155,6 +164,40 @@ async function fetchJobDescription() {
     updateActiveJdPill();
   } catch (error) {
     console.error(error);
+  }
+}
+
+// Fetch LLM Provider config
+async function fetchLlmConfig() {
+  try {
+    const response = await fetch('/api/llm-config');
+    if (response.ok) {
+      const data = await response.json();
+      const select = document.getElementById('llm-provider-select');
+      if (select && data.provider) {
+        select.value = data.provider;
+      }
+    }
+  } catch (e) {
+    console.error('Failed to fetch LLM config:', e);
+  }
+}
+
+async function updateLlmProvider(provider) {
+  try {
+    showUploadStatus(`Switching AI Provider to ${provider.toUpperCase()}...`, 'info');
+    const response = await fetch('/api/llm-config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider })
+    });
+    if (!response.ok) throw new Error('Failed to update LLM provider');
+    const data = await response.json();
+    evaluations = {};
+    renderCandidateList();
+    showUploadStatus(`Successfully switched AI Provider to ${data.provider.toUpperCase()} (${data.model})!`, 'success');
+  } catch (err) {
+    showUploadStatus(`Provider switch failed: ${err.message}`, 'error');
   }
 }
 

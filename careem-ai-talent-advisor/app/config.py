@@ -23,4 +23,14 @@ class Settings(BaseSettings):
             return self.MISTRAL_API_KEY
         return None
 
+    def set_provider(self, provider: str, model: Optional[str] = None):
+        provider_clean = provider.lower().strip()
+        if provider_clean not in ["groq", "mistral"]:
+            raise ValueError(f"Unsupported LLM provider '{provider}'. Must be 'groq' or 'mistral'.")
+        self.LLM_PROVIDER = provider_clean
+        if model:
+            self.LLM_MODEL = model
+        else:
+            self.LLM_MODEL = "llama-3.3-70b-versatile" if provider_clean == "groq" else "mistral-small-latest"
+
 settings = Settings()

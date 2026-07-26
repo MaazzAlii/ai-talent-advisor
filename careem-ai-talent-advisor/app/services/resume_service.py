@@ -56,8 +56,18 @@ class ResumeService:
         """Resets the Job Description back to the default Careem JD."""
         return self.save_job_description(self.DEFAULT_CAREEM_JD)
 
-    def normalize_resume_to_markdown(self, raw_text: str) -> str:
-        """Converts raw extracted resume text into clean Markdown structure."""
+    def normalize_resume_to_markdown(self, raw_text: str, file_path: Optional[str] = None) -> str:
+        """Converts raw extracted resume text or file into clean Markdown structure using Microsoft MarkItDown."""
+        if file_path and os.path.exists(file_path):
+            try:
+                from markitdown import MarkItDown
+                md_converter = MarkItDown()
+                result = md_converter.convert(file_path)
+                if result and result.text_content and result.text_content.strip():
+                    return result.text_content.strip()
+            except Exception as e:
+                logger.warning(f"MarkItDown conversion failed for {file_path}: {e}")
+
         if not raw_text or not raw_text.strip():
             return "# Empty Resume\n\nNo content extracted."
 

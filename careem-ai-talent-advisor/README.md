@@ -1,52 +1,65 @@
 # Careem AI Talent Advisor (Resume Screener & Interview Assistant)
 
-An intelligent recruiting agent prototype tailored for **Careem** that automates the initial screening of backend candidate resumes against a realistic "Senior Backend Engineer (Python) - Ride Matching & Dispatch Team" Job Description.
-
-This prototype scores candidates across 5 key dimensions using the Groq API (running `llama-3.3-70b-versatile`), generates detailed evaluation justifications, and synthesizes 5 custom interview questions tailored to each candidate's background. It features a sleek glassmorphic dark-theme web dashboard.
+An intelligent recruiting agent prototype tailored for **Careem** and custom enterprise hiring pipelines that automates candidate resume screening, dimensional suitability scoring, and technical interview question generation.
 
 ---
 
 ## Key Features
 
-1. **Careem Core JD Alignment:** Preloaded with a realistic job description for a Senior Python Backend Developer in Careem's Ride Hailing Dispatch division.
-2. **Deterministic & AI Evaluations:** Utilizes the Groq LLM API to evaluate resumes.
-3. **Comprehensive Scoring System:** Scores candidates on 5 core axes (0-5 scale) and computes a weighted average percentage overall score:
-   * **Python & Web Frameworks (FastAPI/Django)** [25% weight]
-   * **System Design & Microservices Scale** [25% weight]
-   * **Real-time APIs & Databases (Redis/Postgres)** [20% weight]
-   * **Cloud, Docker & Kubernetes** [15% weight]
-   * **Careem Domain Fit (Logistics/Ride-Hailing)** [15% weight]
-4. **Tailored Interview Guide:** Generates 5 technical interview questions targeting candidate gaps, system designs, or Careem-specific transport issues.
-5. **Interactive Dashboard:** Offers a premium, glassmorphic UI built in vanilla HTML/CSS/JS with smooth transitions, progress bars, and score-color highlighting.
-6. **Custom Resume Uploads:** Allows recruiters to upload custom `.pdf`, `.md`, or `.txt` resumes for real-time AI parsing and screening.
-7. **Preloaded Candidates:** Includes 6 mock profiles modeling perfect, partial, and poor matches (Anas Khan, Sarah Jenkins, David Chen, Emily Rodriguez, Michael Chang, Amara Al-Fayed).
+1. **Editable Job Description System:**
+   - Preloaded with Careem's "Senior Backend Engineer (Python) - Ride Matching & Dispatch Team" Job Description.
+   - Includes a full **View / Edit Job Description Modal** allowing recruiters to modify role titles, company names, core requirements, and responsibilities, or paste custom JDs from any job site (LinkedIn, Indeed, etc.) on-the-fly.
+   - Supports instant **Reset to Default Careem JD**.
+
+2. **Dual LLM Provider Support (Groq & Mistral AI):**
+   - Toggle seamlessly between **Groq (Llama 3.3 70B Versatile)** and **Mistral AI (Mistral Small / Large)** using the header Model Selector dropdown or environment configuration.
+
+3. **Microsoft MarkItDown Resume Conversion:**
+   - Integrates Microsoft's official **MarkItDown** document conversion library to transform `.pdf`, `.docx`, `.md`, and `.txt` candidate resumes into clean, structured Markdown.
+   - Boosts LLM dimensional scoring precision and renders clear Markdown source text in the candidate dashboard viewer tab.
+
+4. **5-Dimensional Scoring Model:**
+   - Evaluates candidates on a 0-5 scale across 5 core dimensions:
+     - **Python & Web Frameworks (FastAPI/Django)** [25% weight]
+     - **System Design & Microservices Scale** [25% weight]
+     - **Real-time APIs & Databases (Redis/Postgres)** [20% weight]
+     - **Cloud, Docker & Kubernetes** [15% weight]
+     - **Domain Fit (Logistics/Ride-Hailing)** [15% weight]
+
+5. **Tailored Technical Interview Questions:**
+   - Generates 5 customized technical interview questions addressing candidate gaps, system designs, or transport-domain scenarios.
+
+6. **Glassmorphic Web Dashboard:**
+   - Dark-theme UI built with Vanilla HTML5, CSS3, and JavaScript featuring circular progress charts, dimension progress bars, and score-color highlighting.
 
 ---
 
 ## Directory Structure
 
 ```
-├── app/
-│   ├── data/
-│   │   ├── resumes/               # Preloaded sample resume files (.md)
-│   │   └── job_description.json   # Careem Senior Backend Engineer JD
-│   ├── schemas/
-│   │   └── api_schemas.py         # Pydantic data schemas
-│   ├── services/
-│   │   ├── llm_service.py         # Groq LLM client & prompting logic
-│   │   └── resume_service.py      # Resume listing, parsing, and pipeline orchestration
-│   ├── tests/
-│   │   └── test_screening.py      # Integration and unit tests
-│   ├── config.py                  # Pydantic configuration loader
-│   └── main.py                    # FastAPI main routing application
-├── frontend/
-│   ├── app.js                     # Frontend API integrations & actions
-│   ├── index.html                 # Main layout & modal windows
-│   └── style.css                  # Modern glassmorphic stylesheet
-├── .env                           # Local API keys and configurations
-├── .gitignore                     # Git ignore file
-├── requirements.txt               # Backend Python dependencies
-└── README.md                      # Documentation
+├── careem-ai-talent-advisor/
+│   ├── app/
+│   │   ├── data/
+│   │   │   ├── resumes/               # Preloaded & custom uploaded resumes (.md / .txt)
+│   │   │   └── job_description.json   # Target Job Description
+│   │   ├── schemas/
+│   │   │   └── api_schemas.py         # Pydantic API data schemas
+│   │   ├── services/
+│   │   │   ├── llm_service.py         # Groq & Mistral AI provider integration
+│   │   │   └── resume_service.py      # Resume parsing, MarkItDown, & JD management
+│   │   ├── tests/
+│   │   │   └── test_screening.py      # Pytest automated test suite
+│   │   ├── config.py                  # Pydantic settings & LLM provider manager
+│   │   └── main.py                    # FastAPI routing application
+│   ├── frontend/
+│   │   ├── app.js                     # Frontend API integrations & UI actions
+│   │   ├── index.html                 # Main layout & View/Edit JD modal
+│   │   └── style.css                  # Modern glassmorphic stylesheet
+│   ├── .env                           # Local API keys & provider config
+│   ├── .env.example                   # Environment variable template
+│   ├── .gitignore                     # Git ignore rules
+│   ├── requirements.txt               # Backend Python dependencies
+│   └── README.md                      # Documentation
 ```
 
 ---
@@ -56,39 +69,40 @@ This prototype scores candidates across 5 key dimensions using the Groq API (run
 ### Prerequisites
 
 * Python 3.10+
-* Groq API Key (Fast & Free tier available at [console.groq.com](https://console.groq.com/keys))
+* Groq API Key ([console.groq.com](https://console.groq.com/keys))
+* Mistral AI API Key ([console.mistral.ai](https://console.mistral.ai/keys))
 
-### Step-by-Step Local Setup
+### Setup Instructions
 
-1. **Clone/Navigate to the directory:**
+1. **Navigate to project directory:**
    ```bash
-   cd "Week 3 Tasks"
+   cd careem-ai-talent-advisor
    ```
 
-2. **Set up a Virtual Environment:**
+2. **Set up virtual environment:**
    ```bash
-   python -m venv .venv
+   python -m venv ..\.venv
    ```
 
-3. **Activate the Virtual Environment:**
-   * **Windows (PowerShell):**
+3. **Activate virtual environment:**
+   - **Windows (PowerShell):**
      ```powershell
-     .venv\Scripts\Activate.ps1
+     ..\.venv\Scripts\Activate.ps1
      ```
-   * **macOS/Linux:**
+   - **macOS/Linux:**
      ```bash
-     source .venv/bin/activate
+     source ../.venv/bin/activate
      ```
 
-4. **Install Dependencies:**
+4. **Install dependencies:**
    ```bash
    pip install -r requirements.txt
    ```
 
-5. **Configure Environment Variables:**
-   Create a `.env` file in the root directory (one is automatically initialized for you in the workspace):
+5. **Configure `.env` file:**
    ```env
    GROQ_API_KEY=your_groq_api_key_here
+   MISTRAL_API_KEY=your_mistral_api_key_here
    LLM_PROVIDER=groq
    LLM_MODEL=llama-3.3-70b-versatile
    PORT=8000
@@ -96,39 +110,38 @@ This prototype scores candidates across 5 key dimensions using the Groq API (run
 
 ---
 
-## How to Run & Verify
+## Running the Application
 
-### Running the Backend Server
+### Launch FastAPI Server
 
-Start the FastAPI application with Uvicorn:
 ```bash
-uvicorn app.main:app --reload --port 8000
+python -m uvicorn app.main:app --port 8000
 ```
 
-Once running, you can access:
-* **Interactive UI:** Open [http://127.0.0.1:8000](http://127.0.0.1:8000) in your web browser.
-* **Interactive Swagger Documentation:** Visit [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) to explore and execute the API endpoints directly.
+- **Interactive UI:** Open [http://127.0.0.1:8000](http://127.0.0.1:8000)
+- **API Docs (Swagger):** Visit [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 
-### Running Automated Tests
+### Run Unit Tests
 
-Run unit tests via Pytest to check file loading, Pydantic schemas, and calculations:
 ```bash
-pytest
+python -m pytest app/tests
 ```
-*(Make sure your virtual environment is active)*
 
 ---
 
-## Scoring Criteria & Formula
-
-The candidate's overall score (weighted average percentage out of 100) is calculated based on the following formula:
+## Scoring Formula
 
 $$\text{Overall Score} = (S_{\text{backend}} \times 0.25 + S_{\text{design}} \times 0.25 + S_{\text{db}} \times 0.20 + S_{\text{devops}} \times 0.15 + S_{\text{domain}} \times 0.15) \times 20$$
 
-Where each dimensional score ($S_i$) is an integer between $0$ and $5$.
+- **Shortlisted (Green):** Score $\ge 80$
+- **Under Review (Orange):** $50 \le \text{Score} < 80$
+- **Rejected (Red):** Score $< 50$
 
-### Score Statuses
+---
 
-* **Shortlisted (Green):** Overall Score $\ge 80$. High technical alignment and domain fit. Direct path to hiring manager review.
-* **Under Review (Orange):** $50 \le \text{Overall Score} < 80$. Minor gaps in frameworks or architecture, but strong fundamentals. Ideal for a preliminary phone screen.
-* **Rejected (Red):** Overall Score $< 50$. Significant mismatch in core language or architecture requirements.
+## Acknowledgments & Credits
+
+We explicitly credit and acknowledge **Microsoft's MarkItDown** project for document-to-markdown conversion capabilities:
+
+* **Microsoft MarkItDown Repository:** [https://github.com/microsoft/markitdown](https://github.com/microsoft/markitdown)
+* **License:** MIT License by Microsoft Corporation.

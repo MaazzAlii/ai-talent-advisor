@@ -54,6 +54,36 @@ def reset_job_description():
         logger.error(f"Error resetting Job Description: {e}")
         raise HTTPException(status_code=500, detail="Failed to reset Job Description.")
 
+@app.get("/api/llm-config")
+def get_llm_config():
+    """Gets current LLM provider and model settings."""
+    return {
+        "provider": settings.LLM_PROVIDER,
+        "model": settings.LLM_MODEL
+    }
+
+@app.post("/api/llm-config")
+def update_llm_config(payload: dict):
+    """Updates active LLM provider ('groq' or 'mistral') and model."""
+    provider = payload.get("provider")
+    model = payload.get("model")
+    if not provider:
+        raise HTTPException(status_code=400, detail="Provider field is required.")
+    try:
+        settings.set_provider(provider, model)
+        # Re-initialize LLMService instance with new provider settings
+        from app.services.llm_service import llm_service
+        llm_service.__init__()
+        return {
+            "status": "success",
+            "provider": settings.LLM_PROVIDER,
+            "model": settings.LLM_MODEL
+        }
+    except Exception as e:
+        logger.error(f"Error changing LLM provider: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 
 @app.get("/api/candidates")
 def list_candidates():
