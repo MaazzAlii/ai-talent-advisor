@@ -35,6 +35,26 @@ def get_job_description():
         logger.error(f"Error loading Job Description: {e}")
         raise HTTPException(status_code=500, detail="Failed to load Job Description.")
 
+@app.put("/api/jd", response_model=JobDescription)
+def update_job_description(jd: JobDescription):
+    """Updates the active Job Description."""
+    try:
+        updated_jd = resume_service.save_job_description(jd.model_dump())
+        return updated_jd
+    except Exception as e:
+        logger.error(f"Error saving Job Description: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update Job Description: {str(e)}")
+
+@app.post("/api/jd/reset", response_model=JobDescription)
+def reset_job_description():
+    """Resets the Job Description back to the default Careem Senior Backend Engineer JD."""
+    try:
+        return resume_service.reset_job_description()
+    except Exception as e:
+        logger.error(f"Error resetting Job Description: {e}")
+        raise HTTPException(status_code=500, detail="Failed to reset Job Description.")
+
+
 @app.get("/api/candidates")
 def list_candidates():
     """Lists preloaded resumes from the resumes directory."""

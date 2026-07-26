@@ -60,6 +60,7 @@ function setupEventListeners() {
   // JD Modal triggers
   viewJdBtn.addEventListener('click', () => {
     jdModal.classList.remove('hidden');
+    switchJdMode('view');
     renderJobDescriptionModal();
   });
   
@@ -70,6 +71,34 @@ function setupEventListeners() {
   jdModal.addEventListener('click', (e) => {
     if (e.target === jdModal) jdModal.classList.add('hidden');
   });
+
+  // JD Mode tab buttons
+  const jdViewTab = document.getElementById('jd-mode-view-btn');
+  const jdEditTab = document.getElementById('jd-mode-edit-btn');
+
+  if (jdViewTab && jdEditTab) {
+    jdViewTab.addEventListener('click', () => switchJdMode('view'));
+    jdEditTab.addEventListener('click', () => switchJdMode('edit'));
+  }
+
+  // JD Edit Form submit
+  const jdEditForm = document.getElementById('jd-edit-form');
+  if (jdEditForm) {
+    jdEditForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      await saveJobDescription();
+    });
+  }
+
+  // JD Reset button
+  const resetJdBtn = document.getElementById('reset-jd-btn');
+  if (resetJdBtn) {
+    resetJdBtn.addEventListener('click', async () => {
+      if (confirm('Are you sure you want to reset to the default Careem Senior Backend Engineer JD?')) {
+        await resetJobDescription();
+      }
+    });
+  }
 
   // Batch screen trigger
   batchScreenBtn.addEventListener('click', () => {
@@ -123,8 +152,16 @@ async function fetchJobDescription() {
     const response = await fetch('/api/jd');
     if (!response.ok) throw new Error('Failed to load Job Description');
     jobDescription = await response.json();
+    updateActiveJdPill();
   } catch (error) {
     console.error(error);
+  }
+}
+
+function updateActiveJdPill() {
+  const activeJdTitle = document.getElementById('active-jd-title');
+  if (activeJdTitle && jobDescription) {
+    activeJdTitle.textContent = `${jobDescription.title} (${jobDescription.company})`;
   }
 }
 
@@ -480,4 +517,98 @@ function renderJobDescriptionModal() {
       </ul>
     </div>
   `;
+}
+
+function switchJdMode(mode) {
+  const jdViewTab = document.getElementById('jd-mode-view-btn');
+  const jdEditTab = document.getElementById('jd-mode-edit-btn');
+  const jdViewPane = document.getElementById('jd-view-pane');
+  const jdEditPane = document.getElementById('jd-edit-pane');
+
+  if (mode === 'edit') {
+    jdViewTab.classList.remove('active');
+    jdEditTab.classList.add('active');
+    jdViewPane.classList.remove('active');
+    jdEditPane.classList.add('active');
+    populateJdForm();
+  } else {
+    jdEditTab.classList.remove('active');
+    jdViewTab.classList.add('active');
+    jdEditPane.classList.remove('active');
+    jdViewPane.classList.add('active');
+    renderJobDescriptionModal();
+  }
+}
+
+function populateJdForm() {
+  if (!jobDescription) return;
+  document.getElementById('jd-title-input').value = jobDescription.title || '';
+  document.getElementById('jd-company-input').value = jobDescription.company || '';
+  document.getElementById('jd-dept-input').value = jobDescription.department || '';
+  document.getElementById('jd-loc-input').value = jobDescription.location || '';
+  document.getElementById('jd-desc-input').value = jobDescription.description || '';
+  document.getElementById('jd-reqs-input').value = (jobDescription.requirements || []).join('\n');
+  document.getElementById('jd-prefs-input').value = (jobDescription.preferred_qualifications || []).join('\n');
+}
+
+async function saveJobDescription() {
+  const saveBtn = document.getElementById('save-jd-btn');
+  const originalText = saveBtn.innerHTML;
+  saveBtn.disabled = true;
+  saveBtn.innerHTML = '<div class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;margin-right:6px;"></div> Saving...';
+
+  const updatedData = {
+    title: document.getElementById('jd-title-input').value.trim(),
+    company: document.getElementById('jd-company-input').value.trim(),
+    department: document.getElementById('jd-dept-input').value.trim(),
+    location: document.getElementById('jd-loc-input').value.trim(),
+    description: document.getElementById('jd-desc-input').value.trim(),
+    requirements: document.getElementById('jd-reqs-input').value.split('\n').map(s => s.trim()).filter(s => s.length > 0),
+    preferred_qualifications: document.getElementById('jd-prefs-input').value.split('\n').map(s => s.trim()).filter(s => s.length > 0)
+  };
+
+  try {
+    const res = await fetch('/api/jd', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedData)
+    });
+    if (!res.ok) throw new Error('Failed to update Job Description');
+
+    jobDescription = await res.json();
+    updateActiveJdPill();
+
+    // Clear evaluations cache since target JD has changed
+    evaluations = {};
+    renderCandidateList();
+
+    switchJdMode('view');
+    showUploadStatus('Job Description updated successfully! Candidate cache reset to evaluate against new JD.', 'success');
+  } catch (err) {
+    showUploadStatus(`Failed to update JD: ${err.message}`, 'error');
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.innerHTML = originalText;
+    lucide.createIcons();
+  }
+}
+
+async function resetJobDescription() {
+  try {
+    const res = await fetch('/api/jd/reset', { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to reset Job Description');
+
+    jobDescription = await res.json();
+    updateActiveJdPill();
+
+    // Clear evaluations cache
+    evaluations = {};
+    renderCandidateList();
+
+    populateJdForm();
+    switchJdMode('view');
+    showUploadStatus('Job Description reset to Careem default successfully!', 'success');
+  } catch (err) {
+    showUploadStatus(`Failed to reset JD: ${err.message}`, 'error');
+  }
 }

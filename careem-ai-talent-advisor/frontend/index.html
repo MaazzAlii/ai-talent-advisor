@@ -31,8 +31,11 @@
         </div>
       </div>
       <div class="jd-badge-container">
+        <div id="active-jd-pill" class="active-jd-pill">
+          <i data-lucide="target"></i> <span id="active-jd-title">Loading target JD...</span>
+        </div>
         <button id="view-jd-btn" class="btn btn-secondary">
-          <i data-lucide="briefcase"></i> View Job Description
+          <i data-lucide="edit-3"></i> View / Edit JD
         </button>
       </div>
     </div>
@@ -216,16 +219,73 @@
     </section>
   </main>
 
-  <!-- Job Description Modal -->
+  <!-- Job Description Modal (View & Edit Modes) -->
   <div class="modal-overlay hidden" id="jd-modal">
     <div class="modal-card">
       <div class="modal-header">
-        <h2><i data-lucide="briefcase"></i> Job Description Details</h2>
+        <div class="modal-title-area">
+          <h2><i data-lucide="briefcase"></i> Target Job Description</h2>
+          <div class="jd-mode-tabs">
+            <button id="jd-mode-view-btn" class="jd-mode-tab active"><i data-lucide="eye"></i> View</button>
+            <button id="jd-mode-edit-btn" class="jd-mode-tab"><i data-lucide="edit"></i> Edit JD</button>
+          </div>
+        </div>
         <button class="close-btn" id="close-jd-btn">&times;</button>
       </div>
-      <div class="modal-body" id="jd-modal-body">
-        <!-- Loaded dynamically -->
-        <div class="loader-container"><div class="spinner"></div></div>
+      <div class="modal-body">
+        <!-- View Mode Pane -->
+        <div id="jd-view-pane" class="jd-pane active">
+          <div id="jd-modal-body">
+            <div class="loader-container"><div class="spinner"></div></div>
+          </div>
+        </div>
+
+        <!-- Edit Mode Pane -->
+        <div id="jd-edit-pane" class="jd-pane">
+          <form id="jd-edit-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="jd-title-input">Role Title</label>
+                <input type="text" id="jd-title-input" required class="form-control" placeholder="e.g. Senior Backend Engineer">
+              </div>
+              <div class="form-group">
+                <label for="jd-company-input">Company Name</label>
+                <input type="text" id="jd-company-input" required class="form-control" placeholder="e.g. Careem">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="jd-dept-input">Department</label>
+                <input type="text" id="jd-dept-input" required class="form-control" placeholder="e.g. Core Engineering">
+              </div>
+              <div class="form-group">
+                <label for="jd-loc-input">Location</label>
+                <input type="text" id="jd-loc-input" required class="form-control" placeholder="e.g. Dubai, UAE (Remote Friendly)">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="jd-desc-input">Job Overview / Description</label>
+              <textarea id="jd-desc-input" rows="4" required class="form-control" placeholder="Describe the role overview and responsibilities..."></textarea>
+            </div>
+
+            <div class="form-group">
+              <label for="jd-reqs-input">Core Requirements (One requirement per line)</label>
+              <textarea id="jd-reqs-input" rows="5" required class="form-control" placeholder="- 5+ years experience in Python\n- Microservices & Redis experience..."></textarea>
+            </div>
+
+            <div class="form-group">
+              <label for="jd-prefs-input">Preferred Qualifications (One qualification per line)</label>
+              <textarea id="jd-prefs-input" rows="4" class="form-control" placeholder="- Prior ride-hailing/logistics experience\n- Go/Java familiarity..."></textarea>
+            </div>
+
+            <div class="modal-footer">
+              <button type="button" id="reset-jd-btn" class="btn btn-secondary"><i data-lucide="rotate-ccw"></i> Reset to Default Careem JD</button>
+              <button type="submit" id="save-jd-btn" class="btn btn-primary"><i data-lucide="check-circle"></i> Save Job Description</button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   </div>

@@ -9,6 +9,8 @@ class JobDescription(BaseModel):
     description: str
     requirements: List[str]
     preferred_qualifications: List[str]
+    raw_text: Optional[str] = None
+
 
 class ResumeProfile(BaseModel):
     id: str
