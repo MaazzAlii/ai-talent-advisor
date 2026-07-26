@@ -13,6 +13,9 @@ class LLMService:
         self.api_key = settings.api_key
         self.provider = settings.LLM_PROVIDER
         self.model = settings.LLM_MODEL
+        # Pixtral is always via Mistral API regardless of provider setting
+        self.pixtral_model = "pixtral-12b-2409"
+        self.mistral_api_key = settings.MISTRAL_API_KEY
 
         if self.provider == "groq":
             if self.api_key:
@@ -140,6 +143,119 @@ class LLMService:
             candidate_name = self._infer_candidate_name(resume_text)
             return self._get_fallback_evaluation(candidate_name)
 
+    def structure_resume_text(self, raw_text: str) -> str:
+        """
+        Uses Mistral Large to convert messy raw extracted text (from pypdf or plain text)
+        into clean, well-structured Markdown. Fast single-shot call — much faster than
+        document conversion libraries like MarkItDown.
+        """
+        if not self.api_key and self.provider == "groq" and not self.client:
+            return ""  # Let heuristic fallback handle it
+        if not self.api_key:
+            return ""  # Let heuristic fallback handle it
+
+        system_prompt = (
+            "You are a document formatter. Convert the following raw resume text into "
+            "clean, well-structured Markdown. Keep ALL information — do not summarize or omit anything. "
+            "Use # for the candidate name, ## for section headers (Summary, Experience, Education, Skills, etc.), "
+            "and - for bullet points. Return ONLY the formatted Markdown, nothing else."
+        )
+        try:
+            # Use non-JSON mode (plain text response)
+            if self.provider == "groq":
+                if not self.client:
+                    return ""
+                completion = self.client.chat.completions.create(
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": raw_text[:8000]}  # Cap to avoid token limits
+                    ],
+                    model=self.model,
+                    temperature=0.0,
+                    max_tokens=2000
+                )
+                return completion.choices[0].message.content.strip()
+            elif self.provider == "mistral":
+                headers = {
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json"
+                }
+                payload = {
+                    "model": self.model,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": raw_text[:8000]}
+                    ],
+                    "temperature": 0.0,
+                    "max_tokens": 2000
+                }
+                response = httpx.post(
+                    "https://api.mistral.ai/v1/chat/completions",
+                    headers=headers,
+                    json=payload,
+                    timeout=30.0
+                )
+                response.raise_for_status()
+                return response.json()["choices"][0]["message"]["content"].strip()
+        except Exception as e:
+            logger.warning(f"Resume structuring via LLM failed, using heuristic fallback: {e}")
+            return ""
+
+    def parse_image_resume(self, image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
+        """
+        Uses Pixtral (Mistral's vision model) to extract and structure text from
+        a resume image (JPG, PNG, etc.). Returns clean Markdown text.
+        Requires MISTRAL_API_KEY regardless of active provider.
+        """
+        import base64
+        if not self.mistral_api_key:
+            raise RuntimeError("Mistral API key required for Pixtral image parsing. Set MISTRAL_API_KEY in .env")
+
+        image_b64 = base64.b64encode(image_bytes).decode("utf-8")
+        data_url = f"data:{mime_type};base64,{image_b64}"
+
+        headers = {
+            "Authorization": f"Bearer {self.mistral_api_key}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": self.pixtral_model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": data_url}
+                        },
+                        {
+                            "type": "text",
+                            "text": (
+                                "This is a resume image. Extract ALL text visible in the image and format it as clean, "
+                                "structured Markdown. Use # for the candidate name, ## for section headers "
+                                "(Summary, Experience, Education, Skills, Projects, etc.), and - for bullet points. "
+                                "Preserve all dates, company names, job titles, and technical skills exactly as shown. "
+                                "Return ONLY the formatted Markdown."
+                            )
+                        }
+                    ]
+                }
+            ],
+            "max_tokens": 2000
+        }
+        try:
+            response = httpx.post(
+                "https://api.mistral.ai/v1/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=60.0
+            )
+            response.raise_for_status()
+            return response.json()["choices"][0]["message"]["content"].strip()
+        except Exception as e:
+            logger.error(f"Pixtral image parsing failed: {e}")
+            raise RuntimeError(f"Image resume parsing failed: {str(e)}")
+
     def improve_resume(self, job_desc: Dict[str, Any], resume_text: str) -> Dict[str, Any]:
         """
         Analyzes the resume against the JD and returns specific improvement suggestions.
@@ -148,6 +264,7 @@ class LLMService:
         """
         if not self.api_key:
             return self._get_fallback_improvement("Candidate")
+
 
         system_prompt = (
             "You are a professional career coach and senior technical recruiter specializing in backend engineering roles. "
