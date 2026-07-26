@@ -149,32 +149,29 @@ class ResumeService:
         """Screens a preloaded candidate resume against the Job Description."""
         job_desc = self.load_job_description()
         resume_text = self.get_resume_content(candidate_id)
-        
+
         evaluation = llm_service.screen_resume(job_desc, resume_text)
-        
+
         # Add metadata
         evaluation["candidate_id"] = candidate_id
         evaluation["candidate_name"] = candidate_id.replace("_", " ").title()
         evaluation["evaluation_date"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
+
         return evaluation
 
-    def screen_custom_resume(self, file_name: str, resume_content: str) -> Dict[str, Any]:
-        """Screens a custom uploaded resume content against the Job Description."""
-        # Convert/normalize resume content into clean Markdown format
-        markdown_content = self.normalize_resume_to_markdown(resume_content)
-        
+    def screen_custom_resume(self, file_name: str, resume_content: str, file_path: Optional[str] = None) -> Dict[str, Any]:
+        """Screens a custom uploaded resume against the Job Description using MarkItDown conversion."""
+        # Use MarkItDown if a file path is provided, else normalize raw text
+        markdown_content = self.normalize_resume_to_markdown(resume_content, file_path=file_path)
+
         job_desc = self.load_job_description()
         evaluation = llm_service.screen_resume(job_desc, markdown_content)
-        
-        # Deduce candidate name from resume text
+
         candidate_name = llm_service._infer_candidate_name(markdown_content)
         candidate_id = "custom_" + file_name.lower().replace(" ", "_").replace(".pdf", "").replace(".txt", "").replace(".md", "")
-        
-        # Save the custom resume to the resumes directory so it can be retrieved and listed
+
         try:
             os.makedirs(self.resumes_dir, exist_ok=True)
-            # Clean candidate_id to be a valid file name
             safe_id = "".join([c for c in candidate_id if c.isalnum() or c in ("_", "-")])
             custom_file_path = os.path.join(self.resumes_dir, f"{safe_id}.txt")
             with open(custom_file_path, "w", encoding="utf-8") as f:
@@ -186,7 +183,26 @@ class ResumeService:
         evaluation["candidate_id"] = candidate_id
         evaluation["candidate_name"] = candidate_name
         evaluation["evaluation_date"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
+
         return evaluation
+
+    def improve_candidate(self, candidate_id: str) -> Dict[str, Any]:
+        """Generates improvement suggestions for a preloaded candidate resume."""
+        job_desc = self.load_job_description()
+        resume_text = self.get_resume_content(candidate_id)
+
+        result = llm_service.improve_resume(job_desc, resume_text)
+        result["candidate_id"] = candidate_id
+        result["candidate_name"] = candidate_id.replace("_", " ").title()
+        return result
+
+    def improve_custom_resume(self, resume_content: str, candidate_id: str, candidate_name: str) -> Dict[str, Any]:
+        """Generates improvement suggestions for a custom uploaded resume."""
+        job_desc = self.load_job_description()
+        result = llm_service.improve_resume(job_desc, resume_content)
+        result["candidate_id"] = candidate_id
+        result["candidate_name"] = candidate_name
+        return result
+
 
 resume_service = ResumeService()
