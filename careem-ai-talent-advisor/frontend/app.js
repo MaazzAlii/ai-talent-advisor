@@ -701,12 +701,17 @@ async function batchScreenAll() {
 // ── Custom File Upload ──
 async function handleFileUpload(file) {
   const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
-  if (!['.pdf', '.txt', '.md'].includes(ext)) {
-    showUploadStatus('Unsupported format. Upload PDF, TXT, or MD.', 'error');
+  const textFormats  = ['.pdf', '.txt', '.md'];
+  const imageFormats = ['.jpg', '.jpeg', '.png'];
+  const allFormats   = [...textFormats, ...imageFormats];
+
+  if (!allFormats.includes(ext)) {
+    showUploadStatus('Unsupported format. Upload PDF, TXT, MD, JPG, or PNG.', 'error');
     return;
   }
 
-  showUploadStatus(`Processing "${file.name}" with Microsoft MarkItDown + Mistral Large...`, 'info');
+  const modelLabel = imageFormats.includes(ext) ? 'Pixtral (Vision)' : 'Mistral Large';
+  showUploadStatus(`Processing "${file.name}" via ${modelLabel}...`, 'info');
 
   emptyState.classList.add('hidden');
   dashboardView.classList.add('hidden');
@@ -742,9 +747,10 @@ async function handleFileUpload(file) {
     activeCandidateId = customCandidate.id;
     renderCandidateList();
 
-    let displayContent = `*** ${file.name} — processed via Microsoft MarkItDown + ${evaluation.status === 'Shortlisted' ? 'Mistral Large' : 'AI'} ***\n\nName: ${evaluation.candidate_name}\nStatus: ${evaluation.status}\n\n${evaluation.summary}`;
-
-    if (ext !== '.pdf') {
+    // For image uploads show placeholder; for text show actual content
+    const imageFormats = ['.jpg', '.jpeg', '.png'];
+    let displayContent = `*** ${file.name} — parsed by ${imageFormats.includes(ext) ? 'Pixtral (Vision Model)' : 'Mistral Large'} ***\n\nName: ${evaluation.candidate_name}\nStatus: ${evaluation.status}\n\n${evaluation.summary}`;
+    if (!imageFormats.includes(ext) && ext !== '.pdf') {
       const reader = new FileReader();
       reader.onload = e => renderEvaluationDashboard(evaluation, e.target.result);
       reader.readAsText(file);
@@ -752,7 +758,7 @@ async function handleFileUpload(file) {
       renderEvaluationDashboard(evaluation, displayContent);
     }
 
-    showUploadStatus(`"${file.name}" screened successfully! Check the Improvement tab for AI feedback.`, 'success');
+    showUploadStatus(`"${file.name}" screened! Check the Improvement tab for AI coaching.`, 'success');
   } catch (err) {
     removeLoader(loader);
     showUploadStatus(`Screening failed: ${err.message}`, 'error');
