@@ -16,8 +16,17 @@
       "dest": "app/main.py"
     },
     {
-      "src": "/(.*)",
+      "src": "/",
+      "dest": "frontend/index.html"
+    },
+    {
+      "src": "/(app\\.js|style\\.css|.*\\.(png|jpg|jpeg|gif|ico|svg|json))",
       "dest": "frontend/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "frontend/index.html"
     }
   ]
 }
+
