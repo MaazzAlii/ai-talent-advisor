@@ -23,6 +23,12 @@ class Settings(BaseSettings):
             return self.MISTRAL_API_KEY
         return None
 
+    def set_api_keys(self, mistral_key: Optional[str] = None, groq_key: Optional[str] = None):
+        if mistral_key is not None:
+            self.MISTRAL_API_KEY = mistral_key.strip() if mistral_key.strip() else None
+        if groq_key is not None:
+            self.GROQ_API_KEY = groq_key.strip() if groq_key.strip() else None
+
     def set_provider(self, provider: str, model: Optional[str] = None):
         provider_clean = provider.lower().strip()
         if provider_clean not in ["groq", "mistral"]:

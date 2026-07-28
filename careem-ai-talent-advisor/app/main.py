@@ -66,35 +66,65 @@ def reset_job_description():
 
 @app.get("/api/llm-config")
 def get_llm_config():
-    """Returns current LLM provider, model, and available options."""
+    """Returns current LLM provider, model, key presence, and available options."""
     return {
         "provider": settings.LLM_PROVIDER,
         "model": settings.LLM_MODEL,
+        "has_mistral_key": bool(settings.MISTRAL_API_KEY and len(settings.MISTRAL_API_KEY.strip()) > 5),
+        "has_groq_key": bool(settings.GROQ_API_KEY and len(settings.GROQ_API_KEY.strip()) > 5),
         "available_providers": [
-            {"value": "mistral", "label": "✦ Mistral Large (Best Quality)", "model": "mistral-large-latest"},
-            {"value": "groq",    "label": "⚡ Groq Llama 3.3 70B (Fast)",   "model": "llama-3.3-70b-versatile"},
+            {
+                "value": "mistral",
+                "label": "✦ Mistral AI",
+                "default_model": "mistral-large-latest",
+                "models": [
+                    {"value": "mistral-large-latest", "label": "Mistral Large (Recommended)"},
+                    {"value": "mistral-small-latest", "label": "Mistral Small (Fast)"},
+                    {"value": "codestral-latest", "label": "Codestral (Code Focused)"},
+                    {"value": "pixtral-12b-2409", "label": "Pixtral 12B (Multimodal)"}
+                ]
+            },
+            {
+                "value": "groq",
+                "label": "⚡ Groq AI",
+                "default_model": "llama-3.3-70b-versatile",
+                "models": [
+                    {"value": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B (Recommended)"},
+                    {"value": "llama3-70b-8192", "label": "Llama 3 70B"},
+                    {"value": "mixtral-8x7b-32768", "label": "Mixtral 8x7B"}
+                ]
+            }
         ]
     }
 
 
 @app.post("/api/llm-config")
 def update_llm_config(payload: dict):
-    """Switches the active LLM provider. Accepts { provider: 'mistral'|'groq', model?: '...' }"""
+    """
+    Switches active LLM provider and/or sets custom API keys.
+    Accepts: { provider: 'mistral'|'groq', model?: string, mistral_api_key?: string, groq_api_key?: string }
+    """
     provider = payload.get("provider")
     model    = payload.get("model")
+    mistral_key = payload.get("mistral_api_key")
+    groq_key    = payload.get("groq_api_key")
+
     if not provider:
         raise HTTPException(status_code=400, detail="Provider field is required.")
     try:
+        settings.set_api_keys(mistral_key=mistral_key, groq_key=groq_key)
         settings.set_provider(provider, model)
         from app.services.llm_service import llm_service
-        llm_service.__init__()
+        llm_service.refresh_config()
         return {
             "status": "success",
             "provider": settings.LLM_PROVIDER,
-            "model": settings.LLM_MODEL
+            "model": settings.LLM_MODEL,
+            "has_mistral_key": bool(settings.MISTRAL_API_KEY),
+            "has_groq_key": bool(settings.GROQ_API_KEY)
         }
     except Exception as e:
-        logger.error(f"Error changing LLM provider: {e}")
+        logger.error(f"Error updating LLM config: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
 

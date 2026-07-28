@@ -142,9 +142,162 @@ function setupEventListeners() {
   });
 }
 
-// ── LLM Config ──
+  // Settings Modal
+  const settingsModal = document.getElementById('settings-modal');
+  const openSettingsBtn = document.getElementById('open-settings-btn');
+  const closeSettingsBtn = document.getElementById('close-settings-btn');
+  const cancelSettingsBtn = document.getElementById('cancel-settings-btn');
+  const settingsForm = document.getElementById('settings-form');
+  const modalProviderSelect = document.getElementById('modal-provider-select');
+  const modalModelSelect = document.getElementById('modal-model-select');
+
+  openSettingsBtn?.addEventListener('click', () => openSettingsModal());
+  closeSettingsBtn?.addEventListener('click', () => settingsModal?.classList.add('hidden'));
+  cancelSettingsBtn?.addEventListener('click', () => settingsModal?.classList.add('hidden'));
+  settingsModal?.addEventListener('click', e => { if (e.target === settingsModal) settingsModal.classList.add('hidden'); });
+
+  // Toggle Password Visibility for API Keys
+  document.querySelectorAll('.toggle-key-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.getAttribute('data-target');
+      const input = document.getElementById(targetId);
+      if (input) {
+        const isPass = input.type === 'password';
+        input.type = isPass ? 'text' : 'password';
+        btn.innerHTML = `<i data-lucide="${isPass ? 'eye-off' : 'eye'}"></i>`;
+        lucide.createIcons();
+      }
+    });
+  });
+
+  // Modal Provider dropdown change -> Auto-select default model
+  modalProviderSelect?.addEventListener('change', e => {
+    populateModelSelect(e.target.value);
+  });
+
+  // Settings form submit
+  settingsForm?.addEventListener('submit', async e => {
+    e.preventDefault();
+    await saveSettings();
+  });
+}
+
+// ── LLM Config & Settings ──
+const providerModels = {
+  mistral: [
+    { value: 'mistral-large-latest', label: '✦ Mistral Large (Recommended)' },
+    { value: 'mistral-small-latest', label: 'Mistral Small (Fast)' },
+    { value: 'codestral-latest', label: 'Codestral (Code Focused)' },
+    { value: 'pixtral-12b-2409', label: 'Pixtral 12B (Multimodal)' }
+  ],
+  groq: [
+    { value: 'llama-3.3-70b-versatile', label: '⚡ Llama 3.3 70B (Recommended)' },
+    { value: 'llama3-70b-8192', label: 'Llama 3 70B' },
+    { value: 'mixtral-8x7b-32768', label: 'Mixtral 8x7B' }
+  ]
+};
+
+function populateModelSelect(provider, selectedModel = null) {
+  const modelSelect = document.getElementById('modal-model-select');
+  if (!modelSelect) return;
+  modelSelect.innerHTML = '';
+  const options = providerModels[provider] || providerModels.mistral;
+  options.forEach(opt => {
+    const el = document.createElement('option');
+    el.value = opt.value;
+    el.textContent = opt.label;
+    modelSelect.appendChild(el);
+  });
+  if (selectedModel && options.some(o => o.value === selectedModel)) {
+    modelSelect.value = selectedModel;
+  } else {
+    modelSelect.value = options[0].value;
+  }
+}
+
+function openSettingsModal() {
+  const settingsModal = document.getElementById('settings-modal');
+  const modalProvider = document.getElementById('modal-provider-select');
+  const mistralInput  = document.getElementById('mistral-key-input');
+  const groqInput     = document.getElementById('groq-key-input');
+
+  const currentProvider = document.getElementById('llm-provider-select')?.value || 'mistral';
+  const savedMistralKey = localStorage.getItem('mistral_api_key') || '';
+  const savedGroqKey    = localStorage.getItem('groq_api_key') || '';
+  const savedModel      = localStorage.getItem('llm_model') || '';
+
+  if (modalProvider) modalProvider.value = currentProvider;
+  if (mistralInput)  mistralInput.value  = savedMistralKey;
+  if (groqInput)     groqInput.value     = savedGroqKey;
+
+  populateModelSelect(currentProvider, savedModel);
+  settingsModal?.classList.remove('hidden');
+}
+
+async function saveSettings() {
+  const settingsModal  = document.getElementById('settings-modal');
+  const provider       = document.getElementById('modal-provider-select')?.value || 'mistral';
+  const model          = document.getElementById('modal-model-select')?.value;
+  const mistral_api_key = document.getElementById('mistral-key-input')?.value.trim() || '';
+  const groq_api_key    = document.getElementById('groq-key-input')?.value.trim() || '';
+
+  // Save to localStorage
+  if (mistral_api_key) localStorage.setItem('mistral_api_key', mistral_api_key);
+  else localStorage.removeItem('mistral_api_key');
+
+  if (groq_api_key) localStorage.setItem('groq_api_key', groq_api_key);
+  else localStorage.removeItem('groq_api_key');
+
+  localStorage.setItem('llm_provider', provider);
+  if (model) localStorage.setItem('llm_model', model);
+
+  // Sync to Backend
+  try {
+    const res = await fetch('/api/llm-config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider, model, mistral_api_key, groq_api_key })
+    });
+    if (!res.ok) throw new Error('Failed to update settings');
+    const data = await res.json();
+
+    // Update Header Selector
+    const headerSelect = document.getElementById('llm-provider-select');
+    if (headerSelect) headerSelect.value = data.provider;
+
+    // Reset cached evaluations
+    evaluations = {};
+    improvements = {};
+    renderCandidateList();
+
+    settingsModal?.classList.add('hidden');
+    showUploadStatus(`Settings saved! Active Provider: ${data.provider.toUpperCase()} (${data.model})`, 'success');
+  } catch (err) {
+    showUploadStatus(`Failed to save settings: ${err.message}`, 'error');
+  }
+}
+
 async function fetchLlmConfig() {
   try {
+    const localMistral = localStorage.getItem('mistral_api_key');
+    const localGroq    = localStorage.getItem('groq_api_key');
+    const localProv    = localStorage.getItem('llm_provider');
+    const localModel   = localStorage.getItem('llm_model');
+
+    // If local storage has keys, sync them to backend on load
+    if (localMistral || localGroq || localProv) {
+      await fetch('/api/llm-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: localProv || 'mistral',
+          model: localModel,
+          mistral_api_key: localMistral || '',
+          groq_api_key: localGroq || ''
+        })
+      });
+    }
+
     const res = await fetch('/api/llm-config');
     if (!res.ok) return;
     const data = await res.json();
@@ -156,15 +309,22 @@ async function fetchLlmConfig() {
 }
 
 async function updateLlmProvider(provider) {
-  showUploadStatus(`Switching AI model to ${provider === 'mistral' ? 'Mistral Large' : 'Groq Llama 3.3'}...`, 'info');
+  showUploadStatus(`Switching AI model to ${provider === 'mistral' ? 'Mistral AI' : 'Groq AI'}...`, 'info');
   try {
+    const mistral_api_key = localStorage.getItem('mistral_api_key') || '';
+    const groq_api_key    = localStorage.getItem('groq_api_key') || '';
+    const defaultModel = provider === 'mistral' ? 'mistral-large-latest' : 'llama-3.3-70b-versatile';
+
     const res = await fetch('/api/llm-config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ provider })
+      body: JSON.stringify({ provider, model: defaultModel, mistral_api_key, groq_api_key })
     });
     if (!res.ok) throw new Error('Failed to update provider');
     const data = await res.json();
+    localStorage.setItem('llm_provider', data.provider);
+    localStorage.setItem('llm_model', data.model);
+
     // Clear caches
     evaluations = {};
     improvements = {};

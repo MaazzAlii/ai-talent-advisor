@@ -10,13 +10,15 @@ logger = logging.getLogger(__name__)
 
 class LLMService:
     def __init__(self):
+        self.refresh_config()
+
+    def refresh_config(self):
         self.provider = settings.LLM_PROVIDER
         self.model = settings.LLM_MODEL
         self.groq_api_key = settings.GROQ_API_KEY
         self.mistral_api_key = settings.MISTRAL_API_KEY
         self.pixtral_model = "pixtral-12b-2409"
 
-        # Initialize Groq client if key exists
         if self.groq_api_key:
             self.groq_client = Groq(api_key=self.groq_api_key)
         else:

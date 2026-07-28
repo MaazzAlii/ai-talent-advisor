@@ -37,10 +37,14 @@
         <div class="model-select-wrapper">
           <i data-lucide="cpu" class="model-icon"></i>
           <select id="llm-provider-select" class="model-select" title="Select AI Model Provider">
-            <option value="mistral">✦ Mistral Large (Best)</option>
-            <option value="groq">⚡ Groq Llama 3.3 70B</option>
+            <option value="mistral">✦ Mistral AI</option>
+            <option value="groq">⚡ Groq AI</option>
           </select>
         </div>
+        <!-- Settings Button -->
+        <button id="open-settings-btn" class="btn btn-secondary" title="AI Provider & API Key Settings">
+          <i data-lucide="settings"></i> Keys &amp; Model
+        </button>
         <!-- Active JD Badge -->
         <div id="active-jd-pill" class="active-jd-pill">
           <i data-lucide="target"></i>
@@ -336,6 +340,76 @@
           </div>
         </div>
 
+      </div>
+    </div>
+  <!-- ═══════════════════ AI & API KEY SETTINGS MODAL ═══════════════════ -->
+  <div id="settings-modal" class="modal-backdrop hidden">
+    <div class="modal-card settings-modal-card">
+      <div class="modal-header">
+        <h2><i data-lucide="sliders"></i> AI Model &amp; API Key Settings</h2>
+        <button id="close-settings-btn" class="icon-btn" title="Close"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-subtitle">Configure your preferred AI Provider, LLM Model, and enter your personal API keys for deployment environments like Vercel.</p>
+
+        <form id="settings-form">
+          <!-- Provider Selection -->
+          <div class="form-group">
+            <label for="modal-provider-select">Select AI Provider</label>
+            <select id="modal-provider-select" class="form-control">
+              <option value="mistral">✦ Mistral AI</option>
+              <option value="groq">⚡ Groq AI</option>
+            </select>
+          </div>
+
+          <!-- Model Selection -->
+          <div class="form-group">
+            <label for="modal-model-select">Select LLM Model</label>
+            <select id="modal-model-select" class="form-control">
+              <!-- Dynamically populated based on Provider -->
+            </select>
+          </div>
+
+          <hr class="divider">
+
+          <!-- Mistral API Key -->
+          <div class="form-group">
+            <div class="label-row">
+              <label for="mistral-key-input">Mistral API Key</label>
+              <a href="https://console.mistral.ai/keys" target="_blank" rel="noopener noreferrer" class="key-link">Get Mistral Key ↗</a>
+            </div>
+            <div class="input-with-btn">
+              <input type="password" id="mistral-key-input" class="form-control" placeholder="Sl2QK...">
+              <button type="button" class="btn btn-secondary toggle-key-btn" data-target="mistral-key-input" title="Toggle Visibility">
+                <i data-lucide="eye"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Groq API Key -->
+          <div class="form-group">
+            <div class="label-row">
+              <label for="groq-key-input">Groq API Key</label>
+              <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" class="key-link">Get Groq Key ↗</a>
+            </div>
+            <div class="input-with-btn">
+              <input type="password" id="groq-key-input" class="form-control" placeholder="gsk_...">
+              <button type="button" class="btn btn-secondary toggle-key-btn" data-target="groq-key-input" title="Toggle Visibility">
+                <i data-lucide="eye"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="key-status-box" id="key-status-box">
+            <i data-lucide="shield-check"></i>
+            <span id="key-status-text">Keys are securely stored in your browser's local storage and used for API calls.</span>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" id="cancel-settings-btn" class="btn btn-secondary">Cancel</button>
+            <button type="submit" class="btn btn-primary"><i data-lucide="check"></i> Save Settings</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>

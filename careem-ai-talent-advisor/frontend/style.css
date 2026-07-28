@@ -1477,8 +1477,74 @@ textarea.form-control {
   .improvement-grid {
     grid-template-columns: 1fr;
   }
-  .form-row {
-    grid-template-columns: 1fr;
-  }
+
+/* ── Settings Modal & API Keys ── */
+.settings-modal-card {
+  max-width: 540px;
+  width: 92%;
 }
 
+.label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.label-row label {
+  margin-bottom: 0;
+}
+
+.key-link {
+  font-size: 0.8rem;
+  color: var(--accent-color, #10b981);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.key-link:hover {
+  text-decoration: underline;
+}
+
+.input-with-btn {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.input-with-btn .form-control {
+  flex: 1;
+}
+
+.input-with-btn .toggle-key-btn {
+  padding: 8px 12px;
+  min-width: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.divider {
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin: 20px 0;
+}
+
+.key-status-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  color: #a7f3d0;
+  margin-top: 16px;
+}
+
+.key-status-box i {
+  color: #34d399;
+  flex-shrink: 0;
+}
