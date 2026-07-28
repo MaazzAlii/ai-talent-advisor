@@ -14,8 +14,10 @@ logger = logging.getLogger(__name__)
 
 class ResumeService:
     def __init__(self):
-        self.resumes_dir = os.path.join("app", "data", "resumes")
-        self.jd_path = os.path.join("app", "data", "job_description.json")
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.resumes_dir = os.path.join(base_dir, "data", "resumes")
+        self.jd_path = os.path.join(base_dir, "data", "job_description.json")
+
 
     DEFAULT_CAREEM_JD = {
         "title": "Senior Backend Engineer (Python) - Ride Matching & Dispatch Team",
