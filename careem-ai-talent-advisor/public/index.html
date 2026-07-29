@@ -3,211 +3,211 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Careem AI Talent Advisor — AI-powered resume screening, candidate evaluation, and interview question generation for engineering hiring.">
-  <title>Careem AI Talent Advisor | Resume Screener &amp; Interview Assistant</title>
-  <!-- Google Fonts -->
+  <title>Careem Resume Desk | Screening & Interview Prep</title>
+  <!-- Google Fonts: Space Grotesk (display), IBM Plex Sans (body), IBM Plex Mono (data/labels) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <!-- Lucide Icons -->
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- Lucide Icons for premium visual cues -->
   <script src="https://unpkg.com/lucide@latest"></script>
   <!-- Custom Styling -->
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-  <!-- Background decorative glow orbs -->
+  <!-- Background decorative elements for futuristic glow -->
   <div class="glow-bg">
     <div class="glow-orb orb-1"></div>
     <div class="glow-orb orb-2"></div>
   </div>
 
-  <!-- ═══════════════════ HEADER ═══════════════════ -->
   <header class="app-header">
     <div class="header-container">
       <div class="logo-area">
-        <div class="logo-icon"><i data-lucide="zap"></i></div>
+        <div class="logo-icon"><i data-lucide="radar"></i></div>
         <div class="logo-text">
-          <h1>Careem <span class="accent-text">TalentAI</span></h1>
-          <p>AI-Powered Resume Screening &amp; Interview Intelligence</p>
+          <h1>Careem <span class="accent-text">Resume Desk</span></h1>
+          <p>Score candidates, draft interview questions, and improve resumes against one JD</p>
         </div>
       </div>
       <div class="jd-badge-container">
-        <!-- AI Model Selector -->
         <div class="model-select-wrapper">
           <i data-lucide="cpu" class="model-icon"></i>
           <select id="llm-provider-select" class="model-select" title="Select AI Model Provider">
-            <option value="mistral">✦ Mistral AI</option>
-            <option value="groq">⚡ Groq AI</option>
+            <option value="groq">Groq (GPT-OSS 120B)</option>
+            <option value="mistral">Mistral AI (Mistral Large)</option>
           </select>
         </div>
-        <!-- Settings Button -->
-        <button id="open-settings-btn" class="btn btn-secondary" title="AI Provider & API Key Settings">
-          <i data-lucide="settings"></i> Keys &amp; Model
-        </button>
-        <!-- Active JD Badge -->
         <div id="active-jd-pill" class="active-jd-pill">
-          <i data-lucide="target"></i>
-          <span id="active-jd-title">Loading target JD...</span>
+          <i data-lucide="target"></i> <span id="active-jd-title">Loading target JD...</span>
         </div>
-        <!-- Edit JD Button -->
         <button id="view-jd-btn" class="btn btn-secondary">
           <i data-lucide="edit-3"></i> View / Edit JD
+        </button>
+        <button id="open-settings-btn" class="btn btn-icon" title="API key settings" aria-label="API key settings">
+          <i data-lucide="settings-2"></i>
         </button>
       </div>
     </div>
   </header>
 
-  <!-- ═══════════════════ MAIN LAYOUT ═══════════════════ -->
+  <!-- Shown until at least one provider API key is saved -->
+  <div class="key-banner hidden" id="key-banner">
+    <i data-lucide="key-round"></i>
+    <span>Add your Groq or Mistral API key to start screening resumes. Keys stay in your browser and are sent only to your chosen provider.</span>
+    <button id="key-banner-btn" class="btn btn-primary btn-sm">Add API Key</button>
+  </div>
+
   <main class="app-container">
-
-    <!-- ── Left Sidebar ── -->
+    <!-- Left Sidebar: Candidate List and Upload -->
     <aside class="sidebar">
-
-      <!-- Upload Card -->
       <div class="sidebar-card upload-card">
         <h3><i data-lucide="file-up"></i> Screen New Resume</h3>
-        <p class="card-subtitle">Upload a candidate resume — PDF, MD, or TXT</p>
+        <p class="card-subtitle">Upload a resume file or a photo/scan of one -- Mistral OCR handles the rest</p>
+        
         <div class="dropzone" id="dropzone">
-          <input type="file" id="resume-file-input" accept=".pdf,.txt,.md,.jpg,.jpeg,.png" style="display:none;">
+          <input type="file" id="resume-file-input" accept=".pdf,.docx,.png,.jpg,.jpeg,.txt,.md" style="display:none;">
           <i data-lucide="upload-cloud" class="upload-icon"></i>
-          <p class="dropzone-text">Drag &amp; drop or <span class="browse-link">browse</span></p>
-          <span class="file-limits">PDF · TXT · MD · JPG/PNG · max 10 MB</span>
+          <p class="dropzone-text">Drag & drop or <span class="browse-link">browse</span></p>
+          <span class="file-limits">PDF, DOCX, PNG/JPG, TXT, or MD (max 10MB)</span>
         </div>
         <div id="upload-status" class="status-msg hidden"></div>
       </div>
 
-      <!-- Candidate List Card -->
       <div class="sidebar-card list-card">
         <div class="card-header-row">
-          <h3><i data-lucide="users"></i> Candidates</h3>
-          <div class="list-actions">
-            <button id="select-all-btn" class="btn btn-secondary btn-xs" title="Select / deselect all">
-              <i data-lucide="check-square"></i>
+          <h3><i data-lucide="users"></i> Sample Candidates</h3>
+          <div class="candidate-list-actions">
+            <button id="screen-selected-btn" class="btn btn-secondary btn-sm" disabled>
+              <i data-lucide="check-square"></i> Screen Selected
             </button>
             <button id="batch-screen-btn" class="btn btn-primary btn-sm">
               <i data-lucide="play"></i> Screen All
             </button>
           </div>
         </div>
+        <label class="select-all-row">
+          <input type="checkbox" id="select-all-checkbox"> Select / deselect all
+        </label>
         <div class="candidate-list" id="candidates-container">
+          <!-- Populated dynamically via JS -->
           <div class="loader-container"><div class="spinner"></div></div>
         </div>
       </div>
     </aside>
 
-    <!-- ── Main Content Panel ── -->
+    <!-- Right Area: Details and Scoring Analysis -->
     <section class="main-content">
-
-      <!-- Empty state -->
+      <!-- Default state when no candidate is selected -->
       <div class="empty-state-view" id="empty-state">
         <i data-lucide="bar-chart-3" class="empty-icon"></i>
         <h2>Candidate Analysis Panel</h2>
-        <p>Select a candidate from the sidebar or upload a resume to view their AI screening score, suitability breakdown, tailored interview questions, and resume improvement suggestions.</p>
+        <p>Select a candidate from the sidebar or upload a new resume to view their screening score, suitability breakdown, and custom interview questions.</p>
       </div>
 
-      <!-- Dashboard view -->
+      <!-- Candidate Assessment Dashboard -->
       <div class="dashboard-view hidden" id="dashboard-view">
-
-        <!-- Candidate Header & Score -->
+        
+        <!-- Candidate Identity & Score Ribbon -->
         <div class="candidate-header">
           <div class="candidate-info">
             <div class="avatar"><span id="candidate-initials">AK</span></div>
             <div>
-              <h2 id="candidate-name-title">Candidate Name</h2>
+              <h2 id="candidate-name-title">Anas Khan</h2>
               <div class="candidate-meta">
-                <span id="candidate-email"><i data-lucide="mail"></i> Not specified</span>
-                <span id="candidate-location"><i data-lucide="map-pin"></i> Not specified</span>
+                <span id="candidate-email"><i data-lucide="mail"></i> anas@email.com</span>
+                <span id="candidate-location"><i data-lucide="map-pin"></i> Dubai, UAE</span>
               </div>
             </div>
           </div>
+          
           <div class="score-display-block">
             <div class="radial-progress-container">
               <svg viewBox="0 0 36 36" class="circular-chart">
-                <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
-                <path id="score-circle-path" class="circle" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                <path id="score-circle-path" class="circle" stroke-dasharray="85, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
               </svg>
-              <div class="radial-percentage"><span id="overall-score-num">0</span>%</div>
+              <div class="radial-percentage"><span id="overall-score-num">85</span>%</div>
             </div>
-            <div class="status-badge" id="status-badge">—</div>
+            <div class="status-badge" id="status-badge">Shortlisted</div>
           </div>
         </div>
 
-        <!-- Tab Navigation (4 tabs) -->
+        <!-- Navigation Tabs -->
         <div class="tab-container">
-          <button class="tab-btn active" data-tab="screening-tab"><i data-lucide="award"></i> Assessment</button>
-          <button class="tab-btn" data-tab="questions-tab"><i data-lucide="message-square"></i> Interview Qs</button>
-          <button class="tab-btn" data-tab="improvement-tab"><i data-lucide="trending-up"></i> Improvement</button>
-          <button class="tab-btn" data-tab="resume-tab"><i data-lucide="file-text"></i> Resume</button>
+          <button class="tab-btn active" data-tab="screening-tab"><i data-lucide="award"></i> Assessment Summary</button>
+          <button class="tab-btn" data-tab="questions-tab"><i data-lucide="message-square"></i> Interview Guide (5 Qs)</button>
+          <button class="tab-btn" data-tab="feedback-tab"><i data-lucide="sparkles"></i> Improve Resume</button>
+          <button class="tab-btn" data-tab="resume-tab"><i data-lucide="file-text"></i> Original Resume</button>
         </div>
 
-        <!-- Tab Content Area -->
+        <!-- Tab Contents -->
         <div class="tab-content-area">
-
-          <!-- Tab 1: Screening Assessment -->
+          
+          <!-- Tab 1: Screening & Breakdown -->
           <div class="tab-pane active" id="screening-tab">
             <div class="split-layout">
-              <!-- Dimension Breakdown -->
+              <!-- Dimensions Breakdown -->
               <div class="card dimension-card">
                 <h3><i data-lucide="check-circle-2"></i> Suitability Criteria Breakdown</h3>
                 <div class="dimensions-list">
-
+                  
                   <div class="dimension-item">
                     <div class="dimension-label">
-                      <span>Python &amp; Web Frameworks (FastAPI/Django)</span>
-                      <strong class="score-pill" id="score-backend">?/5</strong>
+                      <span>Python & Web Frameworks (FastAPI/Django)</span>
+                      <strong class="score-pill" id="score-backend">5/5</strong>
                     </div>
-                    <div class="progress-bar-bg"><div class="progress-bar-fill" id="fill-backend" style="width:0%"></div></div>
-                    <p class="dimension-justification" id="just-backend">Run screening to see results.</p>
+                    <div class="progress-bar-bg"><div class="progress-bar-fill" id="fill-backend" style="width: 100%;"></div></div>
+                    <p class="dimension-justification" id="just-backend">...</p>
                   </div>
 
                   <div class="dimension-item">
                     <div class="dimension-label">
-                      <span>System Design &amp; Concurrency Scale</span>
-                      <strong class="score-pill" id="score-design">?/5</strong>
+                      <span>System Design & Concurrency Scale</span>
+                      <strong class="score-pill" id="score-design">4/5</strong>
                     </div>
-                    <div class="progress-bar-bg"><div class="progress-bar-fill" id="fill-design" style="width:0%"></div></div>
-                    <p class="dimension-justification" id="just-design">Run screening to see results.</p>
+                    <div class="progress-bar-bg"><div class="progress-bar-fill" id="fill-design" style="width: 80%;"></div></div>
+                    <p class="dimension-justification" id="just-design">...</p>
                   </div>
 
                   <div class="dimension-item">
                     <div class="dimension-label">
-                      <span>Real-time APIs &amp; Databases (Redis/Postgres)</span>
-                      <strong class="score-pill" id="score-databases">?/5</strong>
+                      <span>Real-time APIs & Databases (Redis/Postgres)</span>
+                      <strong class="score-pill" id="score-databases">4/5</strong>
                     </div>
-                    <div class="progress-bar-bg"><div class="progress-bar-fill" id="fill-databases" style="width:0%"></div></div>
-                    <p class="dimension-justification" id="just-databases">Run screening to see results.</p>
+                    <div class="progress-bar-bg"><div class="progress-bar-fill" id="fill-databases" style="width: 80%;"></div></div>
+                    <p class="dimension-justification" id="just-databases">...</p>
                   </div>
 
                   <div class="dimension-item">
                     <div class="dimension-label">
-                      <span>Cloud, Docker &amp; Kubernetes</span>
-                      <strong class="score-pill" id="score-devops">?/5</strong>
+                      <span>Cloud, Docker & Kubernetes Infrastructure</span>
+                      <strong class="score-pill" id="score-devops">4/5</strong>
                     </div>
-                    <div class="progress-bar-bg"><div class="progress-bar-fill" id="fill-devops" style="width:0%"></div></div>
-                    <p class="dimension-justification" id="just-devops">Run screening to see results.</p>
+                    <div class="progress-bar-bg"><div class="progress-bar-fill" id="fill-devops" style="width: 80%;"></div></div>
+                    <p class="dimension-justification" id="just-devops">...</p>
                   </div>
 
                   <div class="dimension-item">
                     <div class="dimension-label">
-                      <span>Domain Fit (Logistics / Ride-Hailing)</span>
-                      <strong class="score-pill" id="score-domain">?/5</strong>
+                      <span>Careem Domain Fit (Logistics/Ride-Hailing)</span>
+                      <strong class="score-pill" id="score-domain">5/5</strong>
                     </div>
-                    <div class="progress-bar-bg"><div class="progress-bar-fill" id="fill-domain" style="width:0%"></div></div>
-                    <p class="dimension-justification" id="just-domain">Run screening to see results.</p>
+                    <div class="progress-bar-bg"><div class="progress-bar-fill" id="fill-domain" style="width: 100%;"></div></div>
+                    <p class="dimension-justification" id="just-domain">...</p>
                   </div>
 
                 </div>
               </div>
 
-              <!-- Evaluation Summary -->
+              <!-- General Summary -->
               <div class="card summary-card">
                 <h3><i data-lucide="info"></i> Evaluation Summary</h3>
                 <div class="evaluation-summary-text" id="evaluation-summary">
-                  Select and screen a candidate to see the AI-generated evaluation summary.
+                  ...
                 </div>
                 <div class="timestamp-stamp">
-                  <i data-lucide="calendar"></i> Evaluated: <span id="evaluation-date">N/A</span>
+                  <i data-lucide="calendar"></i> Evaluation Date: <span id="evaluation-date">N/A</span>
                 </div>
               </div>
             </div>
@@ -218,47 +218,49 @@
             <div class="card questions-card">
               <div class="questions-header">
                 <h3><i data-lucide="help-circle"></i> Tailored Technical Interview Guide</h3>
-                <p>These 5 questions are generated specifically to probe this candidate's gaps, key projects, and Careem-relevant scenarios.</p>
+                <p>These questions are synthesized specifically to drill into this candidate's potential weaknesses, key projects, and relevant Careem domain scenarios.</p>
               </div>
               <ul class="questions-list" id="questions-list">
-                <li class="question-placeholder">Screen a candidate to generate tailored interview questions.</li>
+                <!-- Populated dynamically via JS -->
               </ul>
             </div>
           </div>
 
-          <!-- Tab 3: Resume Improvement Guide -->
-          <div class="tab-pane" id="improvement-tab">
-            <div class="improvement-header-bar">
-              <h3><i data-lucide="trending-up"></i> Resume Improvement Guide</h3>
-              <button id="generate-improvement-btn" class="btn btn-primary btn-sm">
-                <i data-lucide="sparkles"></i> Generate AI Suggestions
-              </button>
-            </div>
-            <div id="improvement-panel">
-              <div class="improvement-placeholder">
-                <i data-lucide="lightbulb"></i>
-                <p>Click <strong>"Generate AI Suggestions"</strong> to get personalized resume improvement advice powered by <strong>Mistral Large</strong>.</p>
+          <!-- Tab 3: Resume Improvement Feedback -->
+          <div class="tab-pane" id="feedback-tab">
+            <div class="card feedback-card">
+              <div class="questions-header">
+                <h3><i data-lucide="sparkles"></i> Resume Improvement Suggestions</h3>
+                <p>AI-generated, specific-to-this-JD feedback: what's strong, what's missing, and exactly how to fix it.</p>
+              </div>
+              <div id="feedback-content">
+                <button id="generate-feedback-btn" class="btn btn-primary">
+                  <i data-lucide="wand-2"></i> Generate Suggestions
+                </button>
               </div>
             </div>
           </div>
 
-          <!-- Tab 4: Resume Source -->
+          <!-- Tab 4: Resume Viewer -->
           <div class="tab-pane" id="resume-tab">
             <div class="card resume-view-card">
               <div class="resume-view-header">
                 <h3><i data-lucide="align-left"></i> Resume Source Content</h3>
-                <button id="copy-resume-btn" class="btn btn-secondary btn-sm"><i data-lucide="copy"></i> Copy</button>
+                <button id="copy-resume-btn" class="btn btn-secondary btn-sm"><i data-lucide="copy"></i> Copy Content</button>
               </div>
-              <pre class="resume-raw-content" id="resume-raw-text">Select a candidate to view their resume content.</pre>
+              <pre class="resume-raw-content" id="resume-raw-text">
+                <!-- Populated dynamically via JS -->
+              </pre>
             </div>
           </div>
 
         </div>
+
       </div>
     </section>
   </main>
 
-  <!-- ═══════════════════ JD MODAL ═══════════════════ -->
+  <!-- Job Description Modal (View & Edit Modes) -->
   <div class="modal-overlay hidden" id="jd-modal">
     <div class="modal-card">
       <div class="modal-header">
@@ -266,23 +268,20 @@
           <h2><i data-lucide="briefcase"></i> Target Job Description</h2>
           <div class="jd-mode-tabs">
             <button id="jd-mode-view-btn" class="jd-mode-tab active"><i data-lucide="eye"></i> View</button>
-            <button id="jd-mode-edit-btn" class="jd-mode-tab"><i data-lucide="edit"></i> Edit</button>
-            <button id="jd-mode-paste-btn" class="jd-mode-tab"><i data-lucide="clipboard"></i> Paste JD</button>
+            <button id="jd-mode-edit-btn" class="jd-mode-tab"><i data-lucide="edit"></i> Edit JD</button>
           </div>
         </div>
         <button class="close-btn" id="close-jd-btn">&times;</button>
       </div>
-
       <div class="modal-body">
-
-        <!-- View Pane -->
+        <!-- View Mode Pane -->
         <div id="jd-view-pane" class="jd-pane active">
           <div id="jd-modal-body">
             <div class="loader-container"><div class="spinner"></div></div>
           </div>
         </div>
 
-        <!-- Edit Pane -->
+        <!-- Edit Mode Pane -->
         <div id="jd-edit-pane" class="jd-pane">
           <form id="jd-edit-form">
             <div class="form-row">
@@ -295,6 +294,7 @@
                 <input type="text" id="jd-company-input" required class="form-control" placeholder="e.g. Careem">
               </div>
             </div>
+
             <div class="form-row">
               <div class="form-group">
                 <label for="jd-dept-input">Department</label>
@@ -305,118 +305,80 @@
                 <input type="text" id="jd-loc-input" required class="form-control" placeholder="e.g. Dubai, UAE (Remote Friendly)">
               </div>
             </div>
+
             <div class="form-group">
               <label for="jd-desc-input">Job Overview / Description</label>
               <textarea id="jd-desc-input" rows="4" required class="form-control" placeholder="Describe the role overview and responsibilities..."></textarea>
             </div>
+
             <div class="form-group">
-              <label for="jd-reqs-input">Core Requirements <span class="label-hint">(one per line)</span></label>
-              <textarea id="jd-reqs-input" rows="5" required class="form-control" placeholder="5+ years experience in Python&#10;Microservices &amp; Redis experience..."></textarea>
+              <label for="jd-reqs-input">Core Requirements (One requirement per line)</label>
+              <textarea id="jd-reqs-input" rows="5" required class="form-control" placeholder="- 5+ years experience in Python\n- Microservices & Redis experience..."></textarea>
             </div>
+
             <div class="form-group">
-              <label for="jd-prefs-input">Preferred Qualifications <span class="label-hint">(one per line)</span></label>
-              <textarea id="jd-prefs-input" rows="3" class="form-control" placeholder="Prior ride-hailing/logistics experience&#10;Go/Java familiarity..."></textarea>
+              <label for="jd-prefs-input">Preferred Qualifications (One qualification per line)</label>
+              <textarea id="jd-prefs-input" rows="4" class="form-control" placeholder="- Prior ride-hailing/logistics experience\n- Go/Java familiarity..."></textarea>
             </div>
+
             <div class="modal-footer">
-              <button type="button" id="reset-jd-btn" class="btn btn-secondary"><i data-lucide="rotate-ccw"></i> Reset to Default</button>
+              <button type="button" id="reset-jd-btn" class="btn btn-secondary"><i data-lucide="rotate-ccw"></i> Reset to Default Careem JD</button>
               <button type="submit" id="save-jd-btn" class="btn btn-primary"><i data-lucide="check-circle"></i> Save Job Description</button>
             </div>
           </form>
         </div>
-
-        <!-- Paste JD Pane -->
-        <div id="jd-paste-pane" class="jd-pane">
-          <div class="paste-jd-info">
-            <i data-lucide="clipboard"></i>
-            <p>Paste the full job description text from <strong>LinkedIn, Indeed, or any job board</strong>. The AI will parse and structure it automatically.</p>
-          </div>
-          <div class="form-group">
-            <label for="jd-raw-paste">Paste Full Job Description Text</label>
-            <textarea id="jd-raw-paste" rows="14" class="form-control" placeholder="Paste the complete job description here — title, company, requirements, qualifications, everything..."></textarea>
-          </div>
-          <div class="modal-footer">
-            <span class="paste-hint"><i data-lucide="info"></i> Powered by Mistral Large parsing</span>
-            <button type="button" id="parse-jd-btn" class="btn btn-primary"><i data-lucide="sparkles"></i> Parse &amp; Apply JD</button>
-          </div>
-        </div>
-
       </div>
     </div>
-  <!-- ═══════════════════ AI & API KEY SETTINGS MODAL ═══════════════════ -->
-  <div id="settings-modal" class="modal-backdrop hidden">
+  </div>
+
+  <!-- API Key Settings Modal -->
+  <div class="modal-overlay hidden" id="settings-modal">
     <div class="modal-card settings-modal-card">
       <div class="modal-header">
-        <h2><i data-lucide="sliders"></i> AI Model &amp; API Key Settings</h2>
-        <button id="close-settings-btn" class="icon-btn" title="Close"><i data-lucide="x"></i></button>
+        <div class="modal-title-area">
+          <h2><i data-lucide="key-round"></i> API Keys</h2>
+        </div>
+        <button class="close-btn" id="close-settings-btn">&times;</button>
       </div>
       <div class="modal-body">
-        <p class="modal-subtitle">Configure your preferred AI Provider, LLM Model, and enter your personal API keys for deployment environments like Vercel.</p>
+        <p class="settings-intro">
+          Your keys are stored only in this browser (<code>localStorage</code>) and are sent directly
+          to your selected provider through this app's backend on each request — they are never logged
+          or saved server-side.
+        </p>
 
         <form id="settings-form">
-          <!-- Provider Selection -->
           <div class="form-group">
-            <label for="modal-provider-select">Select AI Provider</label>
-            <select id="modal-provider-select" class="form-control">
-              <option value="mistral">✦ Mistral AI</option>
-              <option value="groq">⚡ Groq AI</option>
-            </select>
+            <label for="groq-key-input">Groq API Key</label>
+            <input type="password" id="groq-key-input" class="form-control mono-input" placeholder="gsk_..." autocomplete="off">
+            <a class="key-help-link" href="https://console.groq.com/keys" target="_blank" rel="noopener">
+              Get a free Groq key <i data-lucide="arrow-up-right"></i>
+            </a>
           </div>
 
-          <!-- Model Selection -->
           <div class="form-group">
-            <label for="modal-model-select">Select LLM Model</label>
-            <select id="modal-model-select" class="form-control">
-              <!-- Dynamically populated based on Provider -->
-            </select>
-          </div>
-
-          <hr class="divider">
-
-          <!-- Mistral API Key -->
-          <div class="form-group">
-            <div class="label-row">
-              <label for="mistral-key-input">Mistral API Key</label>
-              <a href="https://console.mistral.ai/keys" target="_blank" rel="noopener noreferrer" class="key-link">Get Mistral Key ↗</a>
-            </div>
-            <div class="input-with-btn">
-              <input type="password" id="mistral-key-input" class="form-control" placeholder="Sl2QK...">
-              <button type="button" class="btn btn-secondary toggle-key-btn" data-target="mistral-key-input" title="Toggle Visibility">
-                <i data-lucide="eye"></i>
-              </button>
-            </div>
-          </div>
-
-          <!-- Groq API Key -->
-          <div class="form-group">
-            <div class="label-row">
-              <label for="groq-key-input">Groq API Key</label>
-              <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" class="key-link">Get Groq Key ↗</a>
-            </div>
-            <div class="input-with-btn">
-              <input type="password" id="groq-key-input" class="form-control" placeholder="gsk_...">
-              <button type="button" class="btn btn-secondary toggle-key-btn" data-target="groq-key-input" title="Toggle Visibility">
-                <i data-lucide="eye"></i>
-              </button>
-            </div>
-          </div>
-
-          <div class="key-status-box" id="key-status-box">
-            <i data-lucide="shield-check"></i>
-            <span id="key-status-text">Keys are securely stored in your browser's local storage and used for API calls.</span>
+            <label for="mistral-key-input">Mistral API Key</label>
+            <input type="password" id="mistral-key-input" class="form-control mono-input" placeholder="..." autocomplete="off">
+            <a class="key-help-link" href="https://console.mistral.ai/api-keys" target="_blank" rel="noopener">
+              Get a Mistral key <i data-lucide="arrow-up-right"></i>
+            </a>
+            <p class="field-hint">Also used to OCR uploaded PDF/PNG/JPG resumes, regardless of which provider you screen with.</p>
           </div>
 
           <div class="modal-footer">
-            <button type="button" id="cancel-settings-btn" class="btn btn-secondary">Cancel</button>
-            <button type="submit" class="btn btn-primary"><i data-lucide="check"></i> Save Settings</button>
+            <button type="button" id="clear-keys-btn" class="btn btn-secondary"><i data-lucide="trash-2"></i> Clear Keys</button>
+            <button type="submit" class="btn btn-primary"><i data-lucide="check-circle"></i> Save Keys</button>
           </div>
         </form>
       </div>
     </div>
   </div>
 
-  <!-- Lucide init -->
-  <script>lucide.createIcons();</script>
-  <!-- Main App Script -->
+  <!-- Lucide Script init -->
+  <script>
+    lucide.createIcons();
+  </script>
+  <!-- Main Script -->
   <script src="app.js"></script>
 </body>
 </html>
