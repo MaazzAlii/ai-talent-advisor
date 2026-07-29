@@ -1,23 +1,37 @@
 import os
 import json
+import base64
 import logging
 from typing import List, Dict, Any, Optional
-from pypdf import PdfReader
-from io import BytesIO
-from app.config import settings
-from app.schemas.api_schemas import ResumeProfile, JobDescription, EvaluationResult
-from app.services.llm_service import llm_service
 from datetime import datetime
 
+import httpx
+from pypdf import PdfReader
+
+from app.config import settings
+from app.services.llm_service import llm_service
+
 logger = logging.getLogger(__name__)
+
+MISTRAL_OCR_URL = "https://api.mistral.ai/v1/ocr"
+
+TEXT_EXTENSIONS = {".txt", ".md"}
+OCR_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg"}   # sent straight to Mistral OCR
+DOCX_EXTENSIONS = {".docx"}                          # parsed locally, no API call needed
+SUPPORTED_EXTENSIONS = TEXT_EXTENSIONS | OCR_EXTENSIONS | DOCX_EXTENSIONS
+
+MIME_BY_EXT = {
+    ".pdf": "application/pdf",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+}
 
 
 class ResumeService:
     def __init__(self):
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        self.resumes_dir = os.path.join(base_dir, "data", "resumes")
-        self.jd_path = os.path.join(base_dir, "data", "job_description.json")
-
+        self.resumes_dir = os.path.join("app", "data", "resumes")
+        self.jd_path = os.path.join("app", "data", "job_description.json")
 
     DEFAULT_CAREEM_JD = {
         "title": "Senior Backend Engineer (Python) - Ride Matching & Dispatch Team",
@@ -41,10 +55,9 @@ class ResumeService:
         ]
     }
 
-    # ─────────────────────── Job Description ───────────────────────
+    # ---------------------------------------------------------------- JD ----
 
     def load_job_description(self) -> Dict[str, Any]:
-        """Loads the active Job Description from JSON file."""
         if not os.path.exists(self.jd_path):
             self.save_job_description(self.DEFAULT_CAREEM_JD)
             return self.DEFAULT_CAREEM_JD
@@ -52,89 +65,144 @@ class ResumeService:
             return json.load(f)
 
     def save_job_description(self, jd_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Persists updated Job Description data to disk."""
         os.makedirs(os.path.dirname(self.jd_path), exist_ok=True)
         with open(self.jd_path, "w", encoding="utf-8") as f:
             json.dump(jd_data, f, indent=2)
         return jd_data
 
     def reset_job_description(self) -> Dict[str, Any]:
-        """Resets Job Description back to the default Careem JD."""
         return self.save_job_description(self.DEFAULT_CAREEM_JD)
 
-    # ─────────────────────── Document Parsing ───────────────────────
+    # ---------------------------------------------------------- Conversion ----
 
-    def extract_text_from_pdf(self, file_bytes: bytes) -> str:
+    def convert_upload_to_markdown(self, file_bytes: bytes, filename: str) -> str:
         """
-        Extracts raw text from a PDF using pypdf (fast, no external API needed).
-        Returns the combined text of all pages.
+        Converts an uploaded resume (PDF, DOCX, PNG, JPG, TXT or MD) into clean Markdown.
+        PDFs and images go straight to Mistral's OCR API (one fast call, no local
+        document-parsing library). DOCX is parsed locally with python-docx (it already
+        has a text layer, so no OCR/LLM call is needed). TXT/MD pass through as-is.
         """
+        ext = os.path.splitext(filename)[1].lower()
+
+        if ext in TEXT_EXTENSIONS:
+            return file_bytes.decode("utf-8", errors="ignore").strip()
+
+        if ext not in SUPPORTED_EXTENSIONS:
+            raise ValueError(f"Unsupported file format '{ext}'. Please upload PDF, DOCX, PNG, JPG, TXT or MD.")
+
+        if ext in DOCX_EXTENSIONS:
+            markdown_content = self._parse_docx(file_bytes)
+            if not markdown_content:
+                raise ValueError("No text could be extracted from this DOCX file. It may be empty or corrupted.")
+            return markdown_content
+
+        # ext in OCR_EXTENSIONS (.pdf, .png, .jpg, .jpeg)
+        if not settings.MISTRAL_API_KEY:
+            if ext == ".pdf":
+                # No key configured -- fall back to a local, text-layer-only PDF read.
+                markdown_content = self._parse_pdf_fallback(file_bytes)
+                if markdown_content:
+                    return markdown_content
+            raise ValueError(
+                "No MISTRAL_API_KEY configured, so this file can't be OCR'd. "
+                "Add MISTRAL_API_KEY to your .env, or upload a DOCX/TXT/MD instead."
+            )
+
         try:
+            markdown_content = self._mistral_ocr(file_bytes, ext)
+        except Exception as e:
+            logger.error(f"Mistral OCR failed for {filename}: {e}")
+            if ext == ".pdf":
+                markdown_content = self._parse_pdf_fallback(file_bytes)
+                if markdown_content:
+                    return markdown_content
+            raise ValueError(f"Could not read this file via Mistral OCR: {e}") from e
+
+        if not markdown_content:
+            raise ValueError("No text could be extracted from this file. It may be empty, blank, or unreadable.")
+
+        return markdown_content
+
+    def _mistral_ocr(self, file_bytes: bytes, ext: str) -> str:
+        """Sends a PDF or image straight to Mistral's OCR API (mistral-ocr-latest) and
+        returns the combined Markdown for all pages. One HTTP call, no local parsing library."""
+        mime_type = MIME_BY_EXT[ext]
+        b64_data = base64.b64encode(file_bytes).decode("utf-8")
+        data_uri = f"data:{mime_type};base64,{b64_data}"
+
+        document_payload = (
+            {"type": "image_url", "image_url": data_uri}
+            if ext in {".png", ".jpg", ".jpeg"}
+            else {"type": "document_url", "document_url": data_uri}
+        )
+
+        response = httpx.post(
+            MISTRAL_OCR_URL,
+            headers={
+                "Authorization": f"Bearer {settings.MISTRAL_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={"model": settings.MISTRAL_OCR_MODEL, "document": document_payload},
+            timeout=60.0,
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        pages = data.get("pages", [])
+        return "\n\n".join(page.get("markdown", "") for page in pages).strip()
+
+    def _parse_docx(self, file_bytes: bytes) -> str:
+        """Extracts headings/paragraphs/tables from a DOCX into simple Markdown."""
+        from io import BytesIO
+        from docx import Document
+
+        doc = Document(BytesIO(file_bytes))
+        lines = []
+        for para in doc.paragraphs:
+            text = para.text.strip()
+            if not text:
+                continue
+            style = (para.style.name or "").lower()
+            if "heading 1" in style or "title" in style:
+                lines.append(f"# {text}")
+            elif "heading" in style:
+                lines.append(f"## {text}")
+            elif "list" in style:
+                lines.append(f"- {text}")
+            else:
+                lines.append(text)
+
+        for table in doc.tables:
+            for row in table.rows:
+                cells = [c.text.strip() for c in row.cells if c.text.strip()]
+                if cells:
+                    lines.append(" | ".join(cells))
+
+        return "\n".join(lines).strip()
+
+    def _parse_pdf_fallback(self, file_bytes: bytes) -> str:
+        """Last-resort raw text extraction if MarkItDown returns nothing for a PDF."""
+        try:
+            from io import BytesIO
             reader = PdfReader(BytesIO(file_bytes))
-            pages_text = []
+            text = ""
             for page in reader.pages:
                 page_text = page.extract_text()
                 if page_text:
-                    pages_text.append(page_text)
-            return "\n".join(pages_text).strip()
+                    text += page_text + "\n"
+            return text.strip()
         except Exception as e:
-            logger.error(f"pypdf extraction failed: {e}")
-            raise ValueError(f"Failed to extract PDF text: {str(e)}")
+            logger.error(f"Fallback PDF parsing also failed: {e}")
+            return ""
 
-    def normalize_resume_text(self, raw_text: str) -> str:
-        """
-        Normalizes raw resume text into clean Markdown using Mistral Large.
-        Fast single-shot API call — much quicker than document conversion libraries.
-        Falls back to basic text formatting if API call fails.
-        """
-        if not raw_text or not raw_text.strip():
-            return "# Empty Resume\n\nNo content extracted."
-
-        # Already structured markdown — return as-is
-        if raw_text.strip().startswith("#") or "\n## " in raw_text:
-            return raw_text.strip()
-
-        # Use Mistral Large to structure the text into clean Markdown
-        structured = llm_service.structure_resume_text(raw_text)
-        if structured and structured.strip():
-            return structured
-
-        # Fallback: basic heuristic formatting
-        return self._heuristic_format(raw_text)
-
-    def _heuristic_format(self, raw_text: str) -> str:
-        """Basic fallback: format raw resume text using simple heuristics."""
-        lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
-        if not lines:
-            return "# Resume\n\n" + raw_text
-
-        markdown = f"# {lines[0].replace('#', '').strip()}\n\n"
-        section_headers = [
-            "SUMMARY", "EXPERIENCE", "WORK EXPERIENCE", "EDUCATION",
-            "SKILLS", "TECHNICAL SKILLS", "PROJECTS", "CERTIFICATIONS",
-            "ACHIEVEMENTS", "LANGUAGES", "CONTACT"
-        ]
-
-        for line in lines[1:]:
-            upper_line = line.upper().replace(":", "").strip()
-            if any(upper_line == sec or upper_line.startswith(sec) for sec in section_headers):
-                markdown += f"\n## {line.replace(':', '').title()}\n\n"
-            elif line.startswith(("-", "*", "•", "–")):
-                clean = line.lstrip("-*•– ").strip()
-                markdown += f"- {clean}\n"
-            else:
-                markdown += f"{line}\n\n"
-
-        return markdown.strip()
-
-    # ─────────────────────── Candidate Access ───────────────────────
+    # ------------------------------------------------------------ Resumes ----
 
     def list_resumes(self) -> List[Dict[str, str]]:
-        """Lists all pre-loaded resumes from the data directory."""
         resumes = []
         if not os.path.exists(self.resumes_dir):
             return resumes
-        for file_name in os.listdir(self.resumes_dir):
+
+        for file_name in sorted(os.listdir(self.resumes_dir)):
             if file_name.endswith((".md", ".txt")):
                 candidate_id = os.path.splitext(file_name)[0]
                 name = candidate_id.replace("_", " ").title()
@@ -147,69 +215,58 @@ class ResumeService:
         return resumes
 
     def get_resume_content(self, candidate_id: str) -> str:
-        """Reads a pre-loaded resume by candidate ID."""
         for file_name in os.listdir(self.resumes_dir):
             if os.path.splitext(file_name)[0] == candidate_id:
-                with open(os.path.join(self.resumes_dir, file_name), "r", encoding="utf-8") as f:
+                file_path = os.path.join(self.resumes_dir, file_name)
+                with open(file_path, "r", encoding="utf-8") as f:
                     return f.read()
-        raise FileNotFoundError(f"Resume not found for ID: {candidate_id}")
+        raise FileNotFoundError(f"Candidate resume not found for ID: {candidate_id}")
 
-    # ─────────────────────── Screening ───────────────────────
+    # ------------------------------------------------------------ Scoring ----
 
     def screen_candidate(self, candidate_id: str) -> Dict[str, Any]:
-        """Screens a pre-loaded candidate against the active Job Description."""
         job_desc = self.load_job_description()
         resume_text = self.get_resume_content(candidate_id)
+
         evaluation = llm_service.screen_resume(job_desc, resume_text)
         evaluation["candidate_id"] = candidate_id
         evaluation["candidate_name"] = candidate_id.replace("_", " ").title()
         evaluation["evaluation_date"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         return evaluation
 
-    def screen_custom_resume(self, file_name: str, resume_content: str) -> Dict[str, Any]:
-        """Screens a custom uploaded resume against the active Job Description."""
-        # Normalize the raw text into clean Markdown via Mistral Large
-        markdown_content = self.normalize_resume_text(resume_content)
+    def screen_custom_resume(self, file_name: str, file_bytes: bytes) -> Dict[str, Any]:
+        """Converts an uploaded resume to Markdown, saves it, and screens it against the active JD."""
+        markdown_content = self.convert_upload_to_markdown(file_bytes, file_name)
+
         job_desc = self.load_job_description()
         evaluation = llm_service.screen_resume(job_desc, markdown_content)
 
         candidate_name = llm_service._infer_candidate_name(markdown_content)
-        raw_id = "custom_" + file_name.lower().replace(" ", "_")
-        for ext in (".pdf", ".txt", ".md", ".png", ".jpg", ".jpeg"):
-            raw_id = raw_id.replace(ext, "")
-        candidate_id = "".join(c for c in raw_id if c.isalnum() or c in ("_", "-"))
+        base_name = os.path.splitext(file_name)[0].lower().replace(" ", "_")
+        candidate_id = "custom_" + "".join(c for c in base_name if c.isalnum() or c in ("_", "-"))
 
-        # Persist the normalized resume so it appears in the candidate list
         try:
             os.makedirs(self.resumes_dir, exist_ok=True)
-            with open(os.path.join(self.resumes_dir, f"{candidate_id}.txt"), "w", encoding="utf-8") as f:
+            custom_file_path = os.path.join(self.resumes_dir, f"{candidate_id}.md")
+            with open(custom_file_path, "w", encoding="utf-8") as f:
                 f.write(markdown_content)
         except Exception as e:
-            logger.error(f"Failed to save custom resume: {e}")
+            logger.error(f"Failed to save custom resume {candidate_id} to disk: {e}")
 
         evaluation["candidate_id"] = candidate_id
         evaluation["candidate_name"] = candidate_name
         evaluation["evaluation_date"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         return evaluation
 
-    # ─────────────────────── Improvements ───────────────────────
+    # ----------------------------------------------------------- Feedback ----
 
-    def improve_candidate(self, candidate_id: str) -> Dict[str, Any]:
-        """Generates resume improvement suggestions for a pre-loaded candidate."""
+    def get_resume_feedback(self, candidate_id: str) -> Dict[str, Any]:
+        """Generates resume-improvement suggestions for an already-loaded candidate."""
         job_desc = self.load_job_description()
         resume_text = self.get_resume_content(candidate_id)
-        result = llm_service.improve_resume(job_desc, resume_text)
-        result["candidate_id"] = candidate_id
-        result["candidate_name"] = candidate_id.replace("_", " ").title()
-        return result
-
-    def improve_custom_resume(self, resume_content: str, candidate_id: str, candidate_name: str) -> Dict[str, Any]:
-        """Generates resume improvement suggestions for a custom uploaded resume."""
-        job_desc = self.load_job_description()
-        result = llm_service.improve_resume(job_desc, resume_content)
-        result["candidate_id"] = candidate_id
-        result["candidate_name"] = candidate_name
-        return result
+        feedback = llm_service.generate_resume_feedback(job_desc, resume_text)
+        feedback["candidate_id"] = candidate_id
+        return feedback
 
 
 resume_service = ResumeService()
