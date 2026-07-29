@@ -81,12 +81,17 @@ def test_update_and_reset_job_description():
     assert reset_res.json()["company"] == "Careem"
     assert "Senior Backend Engineer" in reset_res.json()["title"]
 
-def test_markdown_normalization():
-    """Verify raw text resume normalization into clean Markdown using heuristic formatter."""
-    raw = "John Doe\nSummary\nExperienced developer.\nSkills\nPython, FastAPI"
-    md = resume_service.normalize_resume_text(raw)
-    # normalize_resume_text calls llm_service.structure_resume_text which returns "" when no API key in test
-    # so it falls back to _heuristic_format — verify basic structure
-    assert "John Doe" in md
-    assert "Skills" in md or "Python" in md
+def test_markdown_passthrough_for_text_uploads():
+    """Plain .txt/.md uploads should pass through as-is (no MarkItDown/OCR needed)."""
+    raw = b"# John Doe\n\n## Summary\nExperienced developer.\n\n## Skills\nPython, FastAPI"
+    md = resume_service.convert_upload_to_markdown(raw, "john_doe.md")
+    assert md.startswith("# John Doe")
+    assert "## Summary" in md
+    assert "## Skills" in md
+
+
+def test_unsupported_extension_rejected():
+    """Uploading an unsupported file type should raise a clear error, not crash."""
+    with pytest.raises(ValueError):
+        resume_service.convert_upload_to_markdown(b"binary data", "resume.exe")
 
