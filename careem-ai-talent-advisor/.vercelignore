@@ -1,0 +1,11 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.git/
+.env
+Dockerfile
+.dockerignore
+pdf_converter_ui.py
+install-readme.md
