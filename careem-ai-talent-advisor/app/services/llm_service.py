@@ -1,286 +1,155 @@
 import json
 import logging
-import httpx
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 from groq import Groq
+from openai import OpenAI
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
+MISTRAL_BASE_URL = "https://api.mistral.ai/v1"
+
+SCORING_SYSTEM_PROMPT = (
+    "You are an expert AI Technical Recruiter specializing in matching candidates for Careem's "
+    "engineering team. Your job is to objectively analyze the candidate's resume against the Job Description.\n\n"
+    "Evaluate the candidate across exactly 5 dimensions, scoring each on a 0-5 scale:\n"
+    "1. backend_skills: Expertise in Python (FastAPI, Django, Flask) and backend frameworks.\n"
+    "2. system_design: Microservices, event-driven designs, scale, concurrency, and performance tuning.\n"
+    "3. real_time_databases: Experience with databases (PostgreSQL), caching (Redis), and real-time tech (WebSockets, gRPC).\n"
+    "4. cloud_devops: Containerization (Docker), orchestration (Kubernetes), and AWS cloud architectures.\n"
+    "5. domain_fit: Logistics, last-mile delivery, or ride-hailing industry experience.\n\n"
+    "Compute the overall weighted score as a percentage using this exact formula:\n"
+    "overall_score = (backend_skills * 0.25 + system_design * 0.25 + real_time_databases * 0.20 + cloud_devops * 0.15 + domain_fit * 0.15) * 20\n"
+    "Ensure the computed overall_score is rounded to the nearest integer.\n\n"
+    "Assign status:\n"
+    "- 'Shortlisted' if overall_score is >= 80\n"
+    "- 'Under Review' if overall_score is between 50 and 79\n"
+    "- 'Rejected' if overall_score is < 50\n\n"
+    "Format the output strictly as a JSON object matching this schema:\n"
+    "{\n"
+    "  \"overall_score\": <int>,\n"
+    "  \"status\": \"<Shortlisted | Under Review | Rejected>\",\n"
+    "  \"breakdown\": {\n"
+    "    \"backend_skills\": {\"score\": <int 0-5>, \"justification\": \"<text>\"},\n"
+    "    \"system_design\": {\"score\": <int 0-5>, \"justification\": \"<text>\"},\n"
+    "    \"real_time_databases\": {\"score\": <int 0-5>, \"justification\": \"<text>\"},\n"
+    "    \"cloud_devops\": {\"score\": <int 0-5>, \"justification\": \"<text>\"},\n"
+    "    \"domain_fit\": {\"score\": <int 0-5>, \"justification\": \"<text>\"}\n"
+    "  },\n"
+    "  \"summary\": \"<Detailed analysis summary>\",\n"
+    "  \"interview_questions\": [\n"
+    "    \"<tailored technical question 1>\",\n"
+    "    \"<tailored technical question 2>\",\n"
+    "    \"<tailored technical question 3>\",\n"
+    "    \"<tailored technical question 4>\",\n"
+    "    \"<tailored technical question 5>\"\n"
+    "  ]\n"
+    "}\n"
+    "Return only the JSON object. Do not include markdown formatting like ```json or ```."
+)
+
+FEEDBACK_SYSTEM_PROMPT = (
+    "You are an expert career coach and resume writer who helps candidates improve their resumes "
+    "for backend engineering roles. You will be given a Job Description and a candidate's resume.\n\n"
+    "Give the candidate direct, specific, and actionable feedback -- not generic advice.\n\n"
+    "Format the output strictly as a JSON object matching this schema:\n"
+    "{\n"
+    "  \"strengths\": [\"<specific strength 1>\", \"<specific strength 2>\", \"<specific strength 3>\"],\n"
+    "  \"improvement_areas\": [\n"
+    "    {\"issue\": \"<what's missing or weak>\", \"suggestion\": \"<concrete rewrite/action to fix it>\"}\n"
+    "  ],\n"
+    "  \"non_conflicting_notes\": [\"<things that are fine as-is and don't need changing>\"],\n"
+    "  \"keyword_gaps\": [\"<important JD keywords/skills missing from the resume>\"],\n"
+    "  \"overall_advice\": \"<2-3 sentence closing recommendation>\"\n"
+    "}\n"
+    "List 3-6 items per array where relevant. Return only the JSON object, no markdown fences."
+)
+
 
 class LLMService:
     def __init__(self):
-        self.refresh_config()
-
-    def refresh_config(self):
+        self.api_key = settings.api_key
         self.provider = settings.LLM_PROVIDER
         self.model = settings.LLM_MODEL
-        self.groq_api_key = settings.GROQ_API_KEY
-        self.mistral_api_key = settings.MISTRAL_API_KEY
-        self.pixtral_model = "pixtral-12b-2409"
 
-        if self.groq_api_key:
-            self.groq_client = Groq(api_key=self.groq_api_key)
+        self.client = None
+        if self.provider == "groq" and self.api_key:
+            self.client = Groq(api_key=self.api_key)
+        elif self.provider == "mistral" and self.api_key:
+            self.client = OpenAI(api_key=self.api_key, base_url=MISTRAL_BASE_URL)
+
+        if not self.client:
+            logger.warning(
+                f"LLM client not initialized for provider '{self.provider}'. "
+                "Check your environment variables. Fallback mock responses will be used."
+            )
+
+    def _chat_json(self, system_prompt: str, user_content: str) -> Dict[str, Any]:
+        """Runs a single chat completion against the active provider and parses strict JSON out."""
+        if self.provider == "groq":
+            completion = self.client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content},
+                ],
+                model=self.model,
+                temperature=0.2,
+                max_tokens=2000,
+                response_format={"type": "json_object"},
+            )
+            result_text = completion.choices[0].message.content.strip()
+        elif self.provider == "mistral":
+            completion = self.client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content},
+                ],
+                model=self.model,
+                temperature=0.2,
+                max_tokens=2000,
+                response_format={"type": "json_object"},
+            )
+            result_text = completion.choices[0].message.content.strip()
         else:
-            self.groq_client = None
+            raise ValueError(f"Unsupported LLM provider: {self.provider}")
 
-        if not self.mistral_api_key and not self.groq_api_key:
-            logger.warning("Neither Mistral nor Groq API keys are configured. Fallback mock will be used.")
-
-    @property
-    def api_key(self) -> Optional[str]:
-        return settings.api_key
-
-    def _execute_groq_call(self, model: str, system_prompt: str, user_content: str, max_tokens: int = 2000, json_mode: bool = True) -> str:
-        """Executes API call to Groq."""
-        if not self.groq_client:
-            raise RuntimeError("Groq API key not configured.")
-        kwargs = {
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_content}
-            ],
-            "model": model,
-            "temperature": 0.1,
-            "max_tokens": max_tokens
-        }
-        if json_mode:
-            kwargs["response_format"] = {"type": "json_object"}
-        completion = self.groq_client.chat.completions.create(**kwargs)
-        return completion.choices[0].message.content.strip()
-
-    def _execute_mistral_call(self, model: str, system_prompt: str, user_content: str, max_tokens: int = 2000, json_mode: bool = True) -> str:
-        """Executes API call to Mistral AI."""
-        if not self.mistral_api_key:
-            raise RuntimeError("Mistral API key not configured.")
-        headers = {
-            "Authorization": f"Bearer {self.mistral_api_key}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "model": model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_content}
-            ],
-            "temperature": 0.1,
-            "max_tokens": max_tokens
-        }
-        if json_mode:
-            payload["response_format"] = {"type": "json_object"}
-        response = httpx.post(
-            "https://api.mistral.ai/v1/chat/completions",
-            headers=headers,
-            json=payload,
-            timeout=90.0
-        )
-        response.raise_for_status()
-        return response.json()["choices"][0]["message"]["content"].strip()
-
-    def _call_llm(self, system_prompt: str, user_content: str, max_tokens: int = 2000, json_mode: bool = True) -> str:
-        """
-        Unified LLM caller with automatic multi-provider failover.
-        Tries primary configured provider/model first.
-        If primary fails (e.g. Rate Limit 429, timeout), automatically fails over
-        to alternate provider or model before throwing an exception.
-        """
-        attempts = []
-
-        # Attempt 1: Primary configured choice
-        attempts.append((self.provider, self.model))
-
-        # Attempt 2 & 3: Failover choices
-        if self.provider == "mistral":
-            attempts.append(("mistral", "mistral-small-latest"))
-            if self.groq_api_key:
-                attempts.append(("groq", "llama-3.3-70b-versatile"))
-        else: # provider == "groq"
-            if self.mistral_api_key:
-                attempts.append(("mistral", "mistral-large-latest"))
-                attempts.append(("mistral", "mistral-small-latest"))
-
-        last_error = None
-        for prov, mdl in attempts:
-            try:
-                if prov == "groq":
-                    return self._execute_groq_call(mdl, system_prompt, user_content, max_tokens, json_mode)
-                elif prov == "mistral":
-                    return self._execute_mistral_call(mdl, system_prompt, user_content, max_tokens, json_mode)
-            except Exception as e:
-                logger.warning(f"LLM call to {prov.upper()} ({mdl}) failed: {e}. Trying failover...")
-                last_error = e
-
-        raise RuntimeError(f"All LLM providers failed. Last error: {last_error}")
-
-    def _parse_json_response(self, raw_text: str) -> Dict[str, Any]:
-        """Safely parse JSON from LLM response, stripping markdown code fences if present."""
-        text = raw_text.strip()
-        if text.startswith("```"):
-            lines = text.splitlines()
-            start = 1
-            end = len(lines) - 1 if lines[-1].strip() == "```" else len(lines)
-            text = "\n".join(lines[start:end])
-        return json.loads(text)
+        if result_text.startswith("```"):
+            lines = result_text.splitlines()
+            result_text = "\n".join(lines[1:-1]) if len(lines) > 2 else result_text
+        return json.loads(result_text)
 
     def screen_resume(self, job_desc: Dict[str, Any], resume_text: str) -> Dict[str, Any]:
-        """
-        Screens a resume against the Job Description.
-        Returns dimensional scores, status, summary, and 5 tailored interview questions.
-        """
-        if not self.mistral_api_key and not self.groq_api_key:
+        """Screens a resume against the Careem Job Description, scores it, and drafts interview questions."""
+        if not self.client:
+            logger.error(f"{self.provider.upper()} client not initialized. Returning fallback mock response.")
             return self._get_fallback_evaluation("Mock Candidate")
-
-        system_prompt = (
-            "You are an expert AI Technical Recruiter. Analyze the candidate resume against the Job Description.\n\n"
-            "Score the candidate across exactly 5 dimensions (0-5 scale each):\n"
-            "1. backend_skills: Python expertise (FastAPI, Django, Flask) and backend architecture.\n"
-            "2. system_design: Microservices, event-driven design, concurrency, and performance.\n"
-            "3. real_time_databases: Databases (PostgreSQL), caching (Redis), real-time tech (WebSockets, gRPC).\n"
-            "4. cloud_devops: Docker, Kubernetes, AWS cloud deployments.\n"
-            "5. domain_fit: Logistics, ride-hailing, or delivery industry experience.\n\n"
-            "Weighted overall score formula:\n"
-            "overall_score = (backend_skills*0.25 + system_design*0.25 + real_time_databases*0.20 + cloud_devops*0.15 + domain_fit*0.15) * 20\n"
-            "Round overall_score to nearest integer.\n\n"
-            "Status rules:\n"
-            "- 'Shortlisted' if overall_score >= 80\n"
-            "- 'Under Review' if overall_score is 50-79\n"
-            "- 'Rejected' if overall_score < 50\n\n"
-            "Return ONLY a valid JSON object with this exact schema:\n"
-            "{\n"
-            "  \"overall_score\": <int>,\n"
-            "  \"status\": \"<Shortlisted|Under Review|Rejected>\",\n"
-            "  \"breakdown\": {\n"
-            "    \"backend_skills\": {\"score\": <int 0-5>, \"justification\": \"<text>\"},\n"
-            "    \"system_design\": {\"score\": <int 0-5>, \"justification\": \"<text>\"},\n"
-            "    \"real_time_databases\": {\"score\": <int 0-5>, \"justification\": \"<text>\"},\n"
-            "    \"cloud_devops\": {\"score\": <int 0-5>, \"justification\": \"<text>\"},\n"
-            "    \"domain_fit\": {\"score\": <int 0-5>, \"justification\": \"<text>\"}\n"
-            "  },\n"
-            "  \"summary\": \"<Detailed analysis summary>\",\n"
-            "  \"interview_questions\": [\"<q1>\", \"<q2>\", \"<q3>\", \"<q4>\", \"<q5>\"]\n"
-            "}"
-        )
 
         user_content = (
             f"### JOB DESCRIPTION:\n{json.dumps(job_desc, indent=2)}\n\n"
             f"### CANDIDATE RESUME:\n{resume_text}\n"
         )
-
         try:
-            raw = self._call_llm(system_prompt, user_content, max_tokens=2000, json_mode=True)
-            return self._parse_json_response(raw)
+            return self._chat_json(SCORING_SYSTEM_PROMPT, user_content)
         except Exception as e:
-            logger.error(f"All LLM providers failed for screening API: {e}")
+            logger.error(f"Error calling {self.provider.upper()} API for screening: {e}")
             candidate_name = self._infer_candidate_name(resume_text)
             return self._get_fallback_evaluation(candidate_name)
 
-    def improve_resume(self, job_desc: Dict[str, Any], resume_text: str) -> Dict[str, Any]:
-        """
-        Analyzes the resume against the JD and returns specific improvement suggestions.
-        Returns structured JSON with strengths, gaps, suggestions, improvements, and overall advice.
-        """
-        if not self.mistral_api_key and not self.groq_api_key:
-            return self._get_fallback_improvement("Candidate")
-
-        system_prompt = (
-            "You are a professional career coach and senior technical recruiter specializing in backend engineering roles. "
-            "Your job is to analyze a candidate's resume against a specific job description and provide specific, actionable improvement advice.\n\n"
-            "Analyze the resume carefully and return ONLY a valid JSON object with this exact schema:\n"
-            "{\n"
-            "  \"strengths\": [\"<strength 1>\", \"<strength 2>\", \"<strength 3>\"],\n"
-            "  \"gaps\": [\"<critical gap 1>\", \"<critical gap 2>\", \"<critical gap 3>\"],\n"
-            "  \"suggestions\": [\n"
-            "    \"<specific resume writing improvement e.g. 'Quantify your Redis caching impact with metrics'>\",\n"
-            "    \"<specific suggestion 2>\",\n"
-            "    \"<specific suggestion 3>\",\n"
-            "    \"<specific suggestion 4>\",\n"
-            "    \"<specific suggestion 5>\"\n"
-            "  ],\n"
-            "  \"improvements\": [\n"
-            "    \"<skill/experience the candidate needs to build e.g. 'Learn Kubernetes and get CKA certified'>\",\n"
-            "    \"<improvement 2>\",\n"
-            "    \"<improvement 3>\",\n"
-            "    \"<improvement 4>\",\n"
-            "    \"<improvement 5>\"\n"
-            "  ],\n"
-            "  \"overall_advice\": \"<2-3 sentence overall career coaching advice for this candidate>\"\n"
-            "}\n\n"
-            "Be specific, direct, and reference actual content from the resume and JD. "
-            "Do NOT be generic. Mention exact skills, tools, or experiences that are missing or need improvement."
-        )
+    def generate_resume_feedback(self, job_desc: Dict[str, Any], resume_text: str) -> Dict[str, Any]:
+        """Generates resume-improvement feedback: strengths, gaps, concrete rewrite suggestions."""
+        if not self.client:
+            logger.error(f"{self.provider.upper()} client not initialized. Returning fallback feedback.")
+            return self._get_fallback_feedback()
 
         user_content = (
             f"### TARGET JOB DESCRIPTION:\n{json.dumps(job_desc, indent=2)}\n\n"
             f"### CANDIDATE RESUME:\n{resume_text}\n"
         )
-
         try:
-            raw = self._call_llm(system_prompt, user_content, max_tokens=2000, json_mode=True)
-            return self._parse_json_response(raw)
+            return self._chat_json(FEEDBACK_SYSTEM_PROMPT, user_content)
         except Exception as e:
-            logger.error(f"All LLM providers failed for improvement API: {e}")
-            candidate_name = self._infer_candidate_name(resume_text)
-            return self._get_fallback_improvement(candidate_name)
-
-    def structure_resume_text(self, raw_text: str) -> str:
-        """
-        Uses LLM to convert raw text into clean structured Markdown.
-        """
-        if not self.mistral_api_key and not self.groq_api_key:
-            return ""
-
-        system_prompt = (
-            "You are a document formatter. Convert the raw resume text into clean, well-structured Markdown. "
-            "Keep ALL information — do not summarize or omit anything. "
-            "Use # for the candidate name, ## for section headers (Summary, Experience, Education, Skills, etc.), "
-            "and - for bullet points. Return ONLY the formatted Markdown."
-        )
-        try:
-            return self._call_llm(system_prompt, raw_text[:8000], max_tokens=2000, json_mode=False)
-        except Exception as e:
-            logger.warning(f"Resume structuring via LLM failed, using heuristic fallback: {e}")
-            return ""
-
-    def parse_image_resume(self, image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
-        """
-        Uses Pixtral (Mistral vision model) to extract text from an image resume.
-        """
-        import base64
-        if not self.mistral_api_key:
-            raise RuntimeError("Mistral API key required for Pixtral image parsing. Set MISTRAL_API_KEY in .env")
-
-        image_b64 = base64.b64encode(image_bytes).decode("utf-8")
-        data_url = f"data:{mime_type};base64,{image_b64}"
-
-        headers = {
-            "Authorization": f"Bearer {self.mistral_api_key}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "model": self.pixtral_model,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "image_url", "image_url": {"url": data_url}},
-                        {"type": "text", "text": "Extract ALL text visible in this resume image as clean structured Markdown. Use # for name, ## for sections."}
-                    ]
-                }
-            ],
-            "max_tokens": 2000
-        }
-        try:
-            response = httpx.post(
-                "https://api.mistral.ai/v1/chat/completions",
-                headers=headers,
-                json=payload,
-                timeout=60.0
-            )
-            response.raise_for_status()
-            return response.json()["choices"][0]["message"]["content"].strip()
-        except Exception as e:
-            logger.error(f"Pixtral image parsing failed: {e}")
-            raise RuntimeError(f"Image resume parsing failed: {str(e)}")
+            logger.error(f"Error calling {self.provider.upper()} API for feedback: {e}")
+            return self._get_fallback_feedback()
 
     def _infer_candidate_name(self, resume_text: str) -> str:
         lines = [line.strip() for line in resume_text.splitlines() if line.strip()]
@@ -291,55 +160,38 @@ class LLMService:
         return "Unknown Candidate"
 
     def _get_fallback_evaluation(self, candidate_name: str) -> Dict[str, Any]:
-        """Fallback evaluation when all LLM APIs fail."""
+        """Provides a logical fallback in case of LLM API issues."""
         return {
             "overall_score": 68,
             "status": "Under Review",
             "breakdown": {
-                "backend_skills": {"score": 4, "justification": "Solid Python and FastAPI background, though advanced async patterns need more evidence."},
-                "system_design": {"score": 3, "justification": "Demonstrates basic microservices understanding but lacks evidence of large-scale concurrency solutions."},
-                "real_time_databases": {"score": 3, "justification": "Familiar with PostgreSQL and Redis, but limited WebSocket or gRPC experience shown."},
-                "cloud_devops": {"score": 3, "justification": "Docker experience present, but Kubernetes and AWS depth is limited."},
-                "domain_fit": {"score": 4, "justification": "Some logistics or transport exposure that aligns with Careem's domain."}
+                "backend_skills": {"score": 4, "justification": "Candidate has solid backend experience in Python and FastAPI as seen in their resume, but lacks some advanced framework experience."},
+                "system_design": {"score": 3, "justification": "Demonstrates basic understanding of microservices, but lacks evidence of scale and concurrency optimization."},
+                "real_time_databases": {"score": 3, "justification": "Familiar with PostgreSQL and Redis caching, but has limited experience with WebSockets or gRPC."},
+                "cloud_devops": {"score": 3, "justification": "Has deployed services in Docker containers, but AWS and Kubernetes experience is limited."},
+                "domain_fit": {"score": 4, "justification": "Possesses matching experience in logistics and transport, which aligns closely with Careem."}
             },
-            "summary": f"Fallback evaluation for {candidate_name} due to temporary API issues. Profile shows backend potential with moderate system design and cloud experience. A direct technical interview is recommended.",
+            "summary": f"Fallback evaluation generated for {candidate_name} because the LLM API call failed (check your API key / network / rate limits). The profile shows potential, especially in Python backend development and logistics domain knowledge. A formal technical interview is suggested to drill down into system design and cloud deployments.",
             "interview_questions": [
-                "Walk me through the most complex Python backend system you've built and how you handled scaling.",
-                "How would you design a real-time vehicle matching system at Careem using Redis and WebSockets?",
-                "Explain how you handle distributed transactions and prevent double-booking in PostgreSQL.",
-                "Describe your approach to CI/CD pipelines, Docker containerization, and Kubernetes deployments.",
-                "What is the most significant concurrency or performance bottleneck you've resolved in production?"
+                "Could you walk me through the system design of the most complex Python-based service you have built?",
+                "How would you implement high-speed real-time vehicle matching in Careem using Redis or WebSockets?",
+                "Explain how you use database transactions and locking mechanisms in PostgreSQL to prevent double-booking driver assignments.",
+                "What is your approach to CI/CD pipelines, Docker containerization, and deploying microservices on Kubernetes?",
+                "Can you discuss a specific scaling problem you encountered in logistics and how you resolved the concurrency bottleneck?"
             ]
         }
 
-    def _get_fallback_improvement(self, candidate_name: str) -> Dict[str, Any]:
-        """Fallback improvement suggestions when all LLM APIs fail."""
+    def _get_fallback_feedback(self) -> Dict[str, Any]:
         return {
             "strengths": [
-                "Demonstrated Python backend development experience",
-                "Familiarity with relational databases and basic DevOps tooling",
-                "Shows initiative through project portfolio"
+                "Resume could not be analyzed automatically -- this is placeholder feedback.",
             ],
-            "gaps": [
-                "Missing explicit Kubernetes orchestration experience",
-                "No evidence of real-time systems (WebSockets, gRPC) at production scale",
-                "Limited ride-hailing or last-mile logistics domain exposure"
+            "improvement_areas": [
+                {"issue": "LLM API call failed", "suggestion": "Check your API key, network connection, and provider rate limits, then retry."}
             ],
-            "suggestions": [
-                "Quantify all achievements with metrics (e.g., 'Reduced API latency by 40% using Redis caching')",
-                "Add a dedicated 'Technical Skills' section listing FastAPI, Redis, PostgreSQL, Docker, Kubernetes explicitly",
-                "Include architecture diagrams or links to system design documents in portfolio",
-                "Rewrite experience bullets to follow the STAR format (Situation, Task, Action, Result)",
-                "Add a brief summary/objective at the top tailored specifically to ride-hailing / transport tech"
-            ],
-            "improvements": [
-                "Study and get hands-on with Apache Kafka for event streaming architecture",
-                "Build a personal project using Kubernetes to demonstrate orchestration skills",
-                "Contribute to open-source Python microservices projects to demonstrate scale experience",
-                "Get AWS Certified Developer – Associate to strengthen cloud credibility",
-                "Learn geospatial indexing concepts (Uber H3, PostGIS) relevant to location-based services"
-            ],
-            "overall_advice": f"Temporary API-generated advice for {candidate_name}. Focus on bridging the gap between basic Python development and production-scale distributed systems. Building demonstrable projects with Kafka, Kubernetes, and real-time APIs will significantly strengthen this profile for senior backend roles at companies like Careem."
+            "non_conflicting_notes": [],
+            "keyword_gaps": [],
+            "overall_advice": "Automated feedback is temporarily unavailable. Please retry once the API connection is restored.",
         }
 
 
