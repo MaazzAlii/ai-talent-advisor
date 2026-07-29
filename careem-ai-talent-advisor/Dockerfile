@@ -1,33 +1,20 @@
-FROM python:3.13-slim-bullseye
-
-ENV DEBIAN_FRONTEND=noninteractive
-ENV EXIFTOOL_PATH=/usr/bin/exiftool
-ENV FFMPEG_PATH=/usr/bin/ffmpeg
-
-# Runtime dependency
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg \
-    exiftool
-
-ARG INSTALL_GIT=false
-RUN if [ "$INSTALL_GIT" = "true" ]; then \
-    apt-get install -y --no-install-recommends \
-    git; \
-    fi
-
-# Cleanup
-RUN rm -rf /var/lib/apt/lists/*
+# Careem AI Talent Advisor - FastAPI + static frontend, single-container image.
+FROM python:3.11-slim
 
 WORKDIR /app
-COPY . /app
-RUN pip --no-cache-dir install \
-    /app/packages/markitdown[all] \
-    /app/packages/markitdown-sample-plugin
 
-# Default USERID and GROUPID
-ARG USERID=nobody
-ARG GROUPID=nogroup
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-USER $USERID:$GROUPID
+COPY app ./app
+COPY frontend ./frontend
 
-ENTRYPOINT [ "markitdown" ]
+# Persisted at runtime so newly-screened/uploaded resumes and JD edits survive restarts
+# (mount a volume at /app/app/data in production if you want that to be permanent).
+RUN mkdir -p /app/app/data/resumes
+
+EXPOSE 8000
+
+ENV PORT=8000
+
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
