@@ -1,37 +1,28 @@
-# ── Python Runtime ──
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-.Python
-*.egg
-*.egg-info/
-dist/
-build/
-
-# ── Virtual Environment ──
+# Python Virtual Environment
 .venv/
 venv/
+ENV/
 env/
 
-# ── Testing ──
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
 .pytest_cache/
-.coverage
-htmlcov/
 
-# ── Environment / Secrets ──
+# Environment settings
 .env
 
-# ── Runtime-generated data files ──
-app/data/resumes/custom_*.txt
-app/data/resumes/custom_*.md
-app/data/job_description.json
-
-# ── Editor / OS ──
-.vscode/
-.idea/
-*.DS_Store
+# OS Files
+.DS_Store
 Thumbs.db
 
-# ── Logs ──
-*.log
+# IDE settings
+.vscode/
+.idea/
+.gemini/
+
+# Custom uploaded resumes
+app/data/resumes/custom_*
+
