@@ -1,9 +1,12 @@
-import sys
+"""
+Vercel Function entrypoint. Vercel's Python runtime detects the `app` object exported
+here and treats this whole file as a single ASGI serverless function. All backend logic
+lives in app/main.py -- this file only exists to give Vercel a stable, documented
+location to find it at (api/index.py is the conventional entrypoint path).
+"""
 import os
+import sys
 
-# Add the project root directory to python path
-root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if root_dir not in sys.path:
-    sys.path.insert(0, root_dir)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.main import app
+from app.main import app  # noqa: E402
